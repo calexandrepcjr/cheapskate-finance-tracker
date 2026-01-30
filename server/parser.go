@@ -53,11 +53,27 @@ func parseAmount(s string) (int64, error) {
 
 func inferCategory(desc string) string {
 	desc = strings.ToLower(desc)
-	if strings.Contains(desc, "pizza") || strings.Contains(desc, "food") || strings.Contains(desc, "burger") {
+
+	// Income
+	if strings.Contains(desc, "salary") || strings.Contains(desc, "paycheck") || strings.Contains(desc, "deposit") {
+		return "Salary"
+	}
+	if strings.Contains(desc, "freelance") || strings.Contains(desc, "contract") {
+		return "Salary" // Or generic Income if we had it
+	}
+
+	// Food
+	if strings.Contains(desc, "pizza") || strings.Contains(desc, "food") || strings.Contains(desc, "burger") ||
+		strings.Contains(desc, "grocer") || strings.Contains(desc, "market") || strings.Contains(desc, "lunch") ||
+		strings.Contains(desc, "dinner") || strings.Contains(desc, "coffee") {
 		return "Food"
 	}
-	if strings.Contains(desc, "taxi") || strings.Contains(desc, "uber") || strings.Contains(desc, "bus") {
+
+	// Transport
+	if strings.Contains(desc, "taxi") || strings.Contains(desc, "uber") || strings.Contains(desc, "bus") ||
+		strings.Contains(desc, "gas") || strings.Contains(desc, "fuel") || strings.Contains(desc, "train") {
 		return "Transport"
 	}
+
 	return "Housing" // Default fallback
 }
