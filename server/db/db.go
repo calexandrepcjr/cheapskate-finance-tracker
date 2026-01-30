@@ -27,8 +27,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createTransactionStmt, err = db.PrepareContext(ctx, createTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTransaction: %w", err)
 	}
+	if q.deleteTransactionStmt, err = db.PrepareContext(ctx, deleteTransaction); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteTransaction: %w", err)
+	}
 	if q.getCategoryByNameStmt, err = db.PrepareContext(ctx, getCategoryByName); err != nil {
 		return nil, fmt.Errorf("error preparing query GetCategoryByName: %w", err)
+	}
+	if q.getCategoryStatsStmt, err = db.PrepareContext(ctx, getCategoryStats); err != nil {
+		return nil, fmt.Errorf("error preparing query GetCategoryStats: %w", err)
 	}
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
@@ -52,9 +58,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createTransactionStmt: %w", cerr)
 		}
 	}
+	if q.deleteTransactionStmt != nil {
+		if cerr := q.deleteTransactionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteTransactionStmt: %w", cerr)
+		}
+	}
 	if q.getCategoryByNameStmt != nil {
 		if cerr := q.getCategoryByNameStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getCategoryByNameStmt: %w", cerr)
+		}
+	}
+	if q.getCategoryStatsStmt != nil {
+		if cerr := q.getCategoryStatsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getCategoryStatsStmt: %w", cerr)
 		}
 	}
 	if q.getUserStmt != nil {
@@ -117,7 +133,9 @@ type Queries struct {
 	db                         DBTX
 	tx                         *sql.Tx
 	createTransactionStmt      *sql.Stmt
+	deleteTransactionStmt      *sql.Stmt
 	getCategoryByNameStmt      *sql.Stmt
+	getCategoryStatsStmt       *sql.Stmt
 	getUserStmt                *sql.Stmt
 	listCategoriesStmt         *sql.Stmt
 	listRecentTransactionsStmt *sql.Stmt
@@ -129,7 +147,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                         tx,
 		tx:                         tx,
 		createTransactionStmt:      q.createTransactionStmt,
+		deleteTransactionStmt:      q.deleteTransactionStmt,
 		getCategoryByNameStmt:      q.getCategoryByNameStmt,
+		getCategoryStatsStmt:       q.getCategoryStatsStmt,
 		getUserStmt:                q.getUserStmt,
 		listCategoriesStmt:         q.listCategoriesStmt,
 		listRecentTransactionsStmt: q.listRecentTransactionsStmt,
