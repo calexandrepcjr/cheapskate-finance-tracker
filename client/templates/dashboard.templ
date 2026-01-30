@@ -1,0 +1,84 @@
+package templates
+
+import "github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
+import "fmt"
+import "database/sql"
+
+templ Dashboard(transactions []db.ListRecentTransactionsRow) {
+	@Layout("Home Dashboard", HouseView(transactions))
+}
+
+templ HouseView(transactions []db.ListRecentTransactionsRow) {
+	<div class="space-y-6">
+		<header class="flex justify-between items-end">
+			<h2 class="text-2xl font-bold">The House</h2>
+			<span class="text-sm text-gray-500">This Month</span>
+		</header>
+
+		<!-- House Visualization (Grid) -->
+		<!-- A playful 'House' shape using grid. -->
+		<div class="relative w-full aspect-square max-w-sm mx-auto bg-gray-100 rounded-3xl p-4 shadow-inner border-4 border-gray-200 overflow-hidden grid grid-cols-2 grid-rows-2 gap-2">
+			<!-- Roof overlay could be SVG or simulated using logic, keeping simple grid for now representing rooms -->
+			
+			<!-- Room 1: Living (General/Transport) -->
+			<div class="bg-white rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
+				<div class="text-2xl">🛋️</div>
+				<div class="text-right font-bold text-gray-700">$0</div>
+			</div>
+
+			<!-- Room 2: Kitchen (Food) -->
+			<div class="bg-orange-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
+				<div class="text-2xl">🍳</div>
+				<div class="text-right font-bold text-orange-700">$0</div>
+			</div>
+
+			<!-- Room 3: Bedroom (Personal) -->
+			<div class="bg-blue-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
+				<div class="text-2xl">🛏️</div>
+				<div class="text-right font-bold text-blue-700">$0</div>
+			</div>
+
+			<!-- Room 4: Garage/Misc -->
+			<div class="bg-gray-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
+				<div class="text-2xl">📦</div>
+				<div class="text-right font-bold text-gray-700">$0</div>
+			</div>
+			
+			<!-- Absolute 'Roof' helper just for fun -->
+			<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-6xl opacity-10 pointer-events-none">🏠</div>
+		</div>
+
+		<!-- Recent List -->
+		<div class="space-y-3">
+			<h3 class="font-bold text-gray-400 text-sm uppercase tracking-wider">Recent</h3>
+			<ul class="space-y-2">
+				for _, t := range transactions {
+					<li class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+						<div class="flex items-center gap-3">
+							<span class="text-2xl bg-gray-50 p-2 rounded-lg">{ unwrapString(t.CategoryIcon) }</span>
+							<div>
+								<div class="font-bold text-gray-800">{ t.Description }</div>
+								<div class="text-xs text-gray-400">{ t.CategoryName }</div>
+							</div>
+						</div>
+						<div class="font-bold text-gray-900 font-mono">
+							{ formatMoney(t.Amount) }
+						</div>
+					</li>
+				}
+			</ul>
+		</div>
+	</div>
+}
+
+func unwrapString(s sql.NullString) string {
+	if s.Valid {
+		return s.String
+	}
+	return "📦"
+}
+
+func formatMoney(cents int64) string {
+	// Simple formatting
+	return fmt.Sprintf("$%.2f", float64(cents)/100.0)
+}
