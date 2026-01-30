@@ -1,0 +1,17 @@
+# Binaries
+bin/
+tmp/
+
+# Database
+*.db
+*.db-journal
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Environment
+.env

@@ -1,0 +1,55 @@
+package templates
+
+templ Home() {
+	@Layout("Quick Add", InputForm())
+}
+
+templ InputForm() {
+	<div class="flex flex-col items-center justify-center h-[60vh] space-y-8 animate-fade-in-up">
+		<div class="text-center space-y-2">
+			<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
+			<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
+		</div>
+
+		<form hx-post="/api/transaction" hx-target="#result" hx-swap="innerHTML" class="w-full relative">
+			<div class="relative group">
+				<div class="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+				<input 
+					type="text" 
+					name="input" 
+					placeholder="e.g., 25 pizza" 
+					class="relative w-full bg-white text-2xl p-6 rounded-xl border-none shadow-xl focus:ring-4 focus:ring-purple-200 outline-none placeholder:text-gray-300 transition-all text-center font-medium"
+					autofocus
+					autocomplete="off"
+				/>
+			</div>
+			
+			<div id="result" class="mt-8"></div>
+		</form>
+
+		<div class="grid grid-cols-2 gap-4 w-full text-center text-sm text-gray-400">
+			<div class="p-3 rounded-lg border border-gray-100 bg-white/50">
+				"20 taxi to work"
+			</div>
+			<div class="p-3 rounded-lg border border-gray-100 bg-white/50">
+				"150 groceries"
+			</div>
+		</div>
+	</div>
+}
+
+templ TransactionSuccess(amount string, desc string) {
+	<div class="p-4 rounded-xl bg-green-50 border border-green-100 text-green-700 flex items-center gap-3 animate-bounce-in">
+		<div class="bg-white p-2 rounded-full shadow-sm text-xl">✅</div>
+		<div class="text-left">
+			<div class="font-bold text-lg">Recorded {amount}</div>
+			<div class="text-xs opacity-75">{desc}</div>
+		</div>
+	</div>
+}
+
+templ TransactionError(msg string) {
+	<div class="p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 animate-shake">
+		❌ {msg}
+	</div>
+}
