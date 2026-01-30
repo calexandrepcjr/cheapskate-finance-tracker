@@ -4,47 +4,72 @@ import "github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 import "fmt"
 import "database/sql"
 
-templ Dashboard(transactions []db.ListRecentTransactionsRow) {
-	@Layout("Home Dashboard", HouseView(transactions))
+templ Dashboard(transactions []db.ListRecentTransactionsRow, stats map[string]int64) {
+	@Layout("Home Dashboard", HouseView(transactions, stats))
 }
 
-templ HouseView(transactions []db.ListRecentTransactionsRow) {
-	<div class="space-y-6">
+templ HouseView(transactions []db.ListRecentTransactionsRow, stats map[string]int64) {
+	<div class="space-y-6" x-data="{ showEmpty: false }">
 		<header class="flex justify-between items-end">
 			<h2 class="text-2xl font-bold">The House</h2>
-			<span class="text-sm text-gray-500">This Month</span>
+			<div class="flex items-center gap-4">
+				<span class="text-sm text-gray-500">This Month</span>
+				<button 
+					@click="showEmpty = !showEmpty"
+					class="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition"
+					title="Toggle empty rooms">
+					<span x-show="!showEmpty">👁️</span>
+					<span x-show="showEmpty" class="opacity-50">🙈</span>
+				</button>
+			</div>
 		</header>
 
 		<!-- House Visualization (Grid) -->
-		<!-- A playful 'House' shape using grid. -->
 		<div class="relative w-full aspect-square max-w-sm mx-auto bg-gray-100 rounded-3xl p-4 shadow-inner border-4 border-gray-200 overflow-hidden grid grid-cols-2 grid-rows-2 gap-2">
-			<!-- Roof overlay could be SVG or simulated using logic, keeping simple grid for now representing rooms -->
-			
-			<!-- Room 1: Living (General/Transport) -->
-			<div class="bg-white rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
-				<div class="text-2xl">🛋️</div>
-				<div class="text-right font-bold text-gray-700">$0</div>
+			<!-- Room 1: Living (Housing) -->
+			<div class="bg-white rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
+				 x-show="showEmpty || $el.dataset.amount != '0'"
+				 data-amount={ fmt.Sprintf("%d", stats["Housing"]) }>
+				<div class="flex justify-between items-start">
+					<div class="text-2xl">🛋️</div>
+					<div class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Housing</div>
+				</div>
+				<div class="text-right font-bold text-gray-700">{ formatMoney(stats["Housing"]) }</div>
 			</div>
 
 			<!-- Room 2: Kitchen (Food) -->
-			<div class="bg-orange-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
-				<div class="text-2xl">🍳</div>
-				<div class="text-right font-bold text-orange-700">$0</div>
+			<div class="bg-orange-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
+				 x-show="showEmpty || $el.dataset.amount != '0'"
+				 data-amount={ fmt.Sprintf("%d", stats["Food"]) }>
+				<div class="flex justify-between items-start">
+					<div class="text-2xl">🍳</div>
+					<div class="text-[10px] uppercase font-bold text-orange-300 tracking-wider">Food</div>
+				</div>
+				<div class="text-right font-bold text-orange-700">{ formatMoney(stats["Food"]) }</div>
 			</div>
 
-			<!-- Room 3: Bedroom (Personal) -->
-			<div class="bg-blue-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
-				<div class="text-2xl">🛏️</div>
-				<div class="text-right font-bold text-blue-700">$0</div>
+			<!-- Room 3: Bedroom (Personal/Salary as placeholder) -->
+			<div class="bg-blue-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
+				 x-show="showEmpty || $el.dataset.amount != '0'"
+				 data-amount={ fmt.Sprintf("%d", stats["Salary"]) }>
+				<div class="flex justify-between items-start">
+					<div class="text-2xl">🛏️</div>
+					<div class="text-[10px] uppercase font-bold text-blue-300 tracking-wider">Income</div>
+				</div>
+				<div class="text-right font-bold text-blue-700">{ formatMoney(stats["Salary"]) }</div>
 			</div>
 
-			<!-- Room 4: Garage/Misc -->
-			<div class="bg-gray-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition">
-				<div class="text-2xl">📦</div>
-				<div class="text-right font-bold text-gray-700">$0</div>
+			<!-- Room 4: Garage/Misc (Transport) -->
+			<div class="bg-gray-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
+				 x-show="showEmpty || $el.dataset.amount != '0'"
+				 data-amount={ fmt.Sprintf("%d", stats["Transport"]) }>
+				<div class="flex justify-between items-start">
+					<div class="text-2xl">📦</div>
+					<div class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Transport</div>
+				</div>
+				<div class="text-right font-bold text-gray-700">{ formatMoney(stats["Transport"]) }</div>
 			</div>
 			
-			<!-- Absolute 'Roof' helper just for fun -->
 			<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-6xl opacity-10 pointer-events-none">🏠</div>
 		</div>
 
@@ -53,7 +78,7 @@ templ HouseView(transactions []db.ListRecentTransactionsRow) {
 			<h3 class="font-bold text-gray-400 text-sm uppercase tracking-wider">Recent</h3>
 			<ul class="space-y-2">
 				for _, t := range transactions {
-					<li class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+					<li class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group relative">
 						<div class="flex items-center gap-3">
 							<span class="text-2xl bg-gray-50 p-2 rounded-lg">{ unwrapString(t.CategoryIcon) }</span>
 							<div>
@@ -61,14 +86,33 @@ templ HouseView(transactions []db.ListRecentTransactionsRow) {
 								<div class="text-xs text-gray-400">{ t.CategoryName }</div>
 							</div>
 						</div>
-						<div class="font-bold text-gray-900 font-mono">
-							{ formatMoney(t.Amount) }
+						<div class="flex items-center gap-4">
+							<div class={ "font-bold font-mono", 
+								templ.KV("text-rose-600", t.Amount < 0),
+								templ.KV("text-emerald-600", t.Amount > 0),
+								templ.KV("text-gray-900", t.Amount == 0) }>
+								{ formatMoney(t.Amount) }
+							</div>
+							
+							<!-- Delete Button (Visible on Hover/Focus, always on mobile) -->
+							<button 
+								class="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full"
+								hx-delete={ fmt.Sprintf("/api/transaction/%d", t.ID) }
+								hx-target="closest li"
+								hx-swap="outerHTML"
+								hx-confirm="Are you sure you want to delete this transaction?"
+								title="Delete">
+								🗑️
+							</button>
 						</div>
 					</li>
 				}
 			</ul>
 		</div>
 	</div>
+	
+	<!-- Alpine.js for visibility toggle -->
+	<script src="//unpkg.com/alpinejs" defer></script>
 }
 
 func unwrapString(s sql.NullString) string {
@@ -79,6 +123,8 @@ func unwrapString(s sql.NullString) string {
 }
 
 func formatMoney(cents int64) string {
-	// Simple formatting
+	if cents < 0 {
+		return fmt.Sprintf("-$%.2f", float64(-cents)/100.0)
+	}
 	return fmt.Sprintf("$%.2f", float64(cents)/100.0)
 }
