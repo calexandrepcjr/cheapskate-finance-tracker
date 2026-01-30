@@ -12,7 +12,7 @@ import "github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 import "fmt"
 import "database/sql"
 
-func Dashboard(transactions []db.ListRecentTransactionsRow) templ.Component {
+func Dashboard(transactions []db.ListRecentTransactionsRow, stats map[string]int64) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -33,7 +33,7 @@ func Dashboard(transactions []db.ListRecentTransactionsRow) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Layout("Home Dashboard", HouseView(transactions)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout("Home Dashboard", HouseView(transactions, stats)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -41,7 +41,7 @@ func Dashboard(transactions []db.ListRecentTransactionsRow) templ.Component {
 	})
 }
 
-func HouseView(transactions []db.ListRecentTransactionsRow) templ.Component {
+func HouseView(transactions []db.ListRecentTransactionsRow, stats map[string]int64) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -62,69 +62,211 @@ func HouseView(transactions []db.ListRecentTransactionsRow) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><header class=\"flex justify-between items-end\"><h2 class=\"text-2xl font-bold\">The House</h2><span class=\"text-sm text-gray-500\">This Month</span></header><!-- House Visualization (Grid) --><!-- A playful 'House' shape using grid. --><div class=\"relative w-full aspect-square max-w-sm mx-auto bg-gray-100 rounded-3xl p-4 shadow-inner border-4 border-gray-200 overflow-hidden grid grid-cols-2 grid-rows-2 gap-2\"><!-- Roof overlay could be SVG or simulated using logic, keeping simple grid for now representing rooms --><!-- Room 1: Living (General/Transport) --><div class=\"bg-white rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\"><div class=\"text-2xl\">🛋️</div><div class=\"text-right font-bold text-gray-700\">$0</div></div><!-- Room 2: Kitchen (Food) --><div class=\"bg-orange-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\"><div class=\"text-2xl\">🍳</div><div class=\"text-right font-bold text-orange-700\">$0</div></div><!-- Room 3: Bedroom (Personal) --><div class=\"bg-blue-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\"><div class=\"text-2xl\">🛏️</div><div class=\"text-right font-bold text-blue-700\">$0</div></div><!-- Room 4: Garage/Misc --><div class=\"bg-gray-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\"><div class=\"text-2xl\">📦</div><div class=\"text-right font-bold text-gray-700\">$0</div></div><!-- Absolute 'Roof' helper just for fun --><div class=\"absolute -top-6 left-1/2 -translate-x-1/2 text-6xl opacity-10 pointer-events-none\">🏠</div></div><!-- Recent List --><div class=\"space-y-3\"><h3 class=\"font-bold text-gray-400 text-sm uppercase tracking-wider\">Recent</h3><ul class=\"space-y-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\" x-data=\"{ showEmpty: false }\"><header class=\"flex justify-between items-end\"><h2 class=\"text-2xl font-bold\">The House</h2><div class=\"flex items-center gap-4\"><span class=\"text-sm text-gray-500\">This Month</span> <button @click=\"showEmpty = !showEmpty\" class=\"p-2 rounded-full hover:bg-gray-100 text-gray-400 transition\" title=\"Toggle empty rooms\"><span x-show=\"!showEmpty\">👁️</span> <span x-show=\"showEmpty\" class=\"opacity-50\">🙈</span></button></div></header><!-- House Visualization (Grid) --><div class=\"relative w-full aspect-square max-w-sm mx-auto bg-gray-100 rounded-3xl p-4 shadow-inner border-4 border-gray-200 overflow-hidden grid grid-cols-2 grid-rows-2 gap-2\"><!-- Room 1: Living (Housing) --><div class=\"bg-white rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\" x-show=\"showEmpty || $el.dataset.amount != '0'\" data-amount=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", stats["Housing"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 32, Col: 54}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><div class=\"flex justify-between items-start\"><div class=\"text-2xl\">🛋️</div><div class=\"text-[10px] uppercase font-bold text-gray-400 tracking-wider\">Housing</div></div><div class=\"text-right font-bold text-gray-700\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(formatMoney(stats["Housing"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 37, Col: 83}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div><!-- Room 2: Kitchen (Food) --><div class=\"bg-orange-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\" x-show=\"showEmpty || $el.dataset.amount != '0'\" data-amount=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", stats["Food"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 43, Col: 51}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\"><div class=\"flex justify-between items-start\"><div class=\"text-2xl\">🍳</div><div class=\"text-[10px] uppercase font-bold text-orange-300 tracking-wider\">Food</div></div><div class=\"text-right font-bold text-orange-700\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(formatMoney(stats["Food"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 48, Col: 82}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div><!-- Room 3: Bedroom (Personal/Salary as placeholder) --><div class=\"bg-blue-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\" x-show=\"showEmpty || $el.dataset.amount != '0'\" data-amount=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", stats["Salary"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 54, Col: 53}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"><div class=\"flex justify-between items-start\"><div class=\"text-2xl\">🛏️</div><div class=\"text-[10px] uppercase font-bold text-blue-300 tracking-wider\">Income</div></div><div class=\"text-right font-bold text-blue-700\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formatMoney(stats["Salary"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 59, Col: 82}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div></div><!-- Room 4: Garage/Misc (Transport) --><div class=\"bg-gray-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition\" x-show=\"showEmpty || $el.dataset.amount != '0'\" data-amount=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", stats["Transport"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 65, Col: 56}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><div class=\"flex justify-between items-start\"><div class=\"text-2xl\">📦</div><div class=\"text-[10px] uppercase font-bold text-gray-400 tracking-wider\">Transport</div></div><div class=\"text-right font-bold text-gray-700\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(formatMoney(stats["Transport"]))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 70, Col: 85}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div><div class=\"absolute -top-6 left-1/2 -translate-x-1/2 text-6xl opacity-10 pointer-events-none\">🏠</div></div><!-- Recent List --><div class=\"space-y-3\"><h3 class=\"font-bold text-gray-400 text-sm uppercase tracking-wider\">Recent</h3><ul class=\"space-y-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, t := range transactions {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<li class=\"bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center\"><div class=\"flex items-center gap-3\"><span class=\"text-2xl bg-gray-50 p-2 rounded-lg\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<li class=\"bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group relative\"><div class=\"flex items-center gap-3\"><span class=\"text-2xl bg-gray-50 p-2 rounded-lg\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(unwrapString(t.CategoryIcon))
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(unwrapString(t.CategoryIcon))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 58, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 83, Col: 86}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</span><div><div class=\"font-bold text-gray-800\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(t.Description)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 60, Col: 60}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span><div><div class=\"font-bold text-gray-800\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div><div class=\"text-xs text-gray-400\">")
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(t.Description)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 85, Col: 60}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(t.CategoryName)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 61, Col: 59}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div><div class=\"text-xs text-gray-400\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div></div><div class=\"font-bold text-gray-900 font-mono\">")
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(t.CategoryName)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 86, Col: 59}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(formatMoney(t.Amount))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 65, Col: 30}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div></div></div><div class=\"flex items-center gap-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div></li>")
+			var templ_7745c5c3_Var14 = []any{"font-bold font-mono",
+				templ.KV("text-rose-600", t.Amount < 0),
+				templ.KV("text-emerald-600", t.Amount > 0),
+				templ.KV("text-gray-900", t.Amount == 0)}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var14...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var14).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var16 string
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(formatMoney(t.Amount))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 94, Col: 31}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div><!-- Delete Button (Visible on Hover/Focus, always on mobile) --><button class=\"opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full\" hx-delete=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var17 string
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/api/transaction/%d", t.ID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/dashboard.templ`, Line: 100, Col: 60}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" hx-target=\"closest li\" hx-swap=\"outerHTML\" hx-confirm=\"Are you sure you want to delete this transaction?\" title=\"Delete\">🗑️</button></div></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</ul></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</ul></div></div><!-- Alpine.js for visibility toggle --><script src=\"//unpkg.com/alpinejs\" defer></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -140,7 +282,9 @@ func unwrapString(s sql.NullString) string {
 }
 
 func formatMoney(cents int64) string {
-	// Simple formatting
+	if cents < 0 {
+		return fmt.Sprintf("-$%.2f", float64(-cents)/100.0)
+	}
 	return fmt.Sprintf("$%.2f", float64(cents)/100.0)
 }
 

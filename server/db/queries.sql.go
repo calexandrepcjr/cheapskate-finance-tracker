@@ -52,6 +52,21 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 	return i, err
 }
 
+const deleteTransaction = `-- name: DeleteTransaction :exec
+DELETE FROM transactions
+WHERE id = ? AND user_id = ?
+`
+
+type DeleteTransactionParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) DeleteTransaction(ctx context.Context, arg DeleteTransactionParams) error {
+	_, err := q.exec(ctx, q.deleteTransactionStmt, deleteTransaction, arg.ID, arg.UserID)
+	return err
+}
+
 const getCategoryByName = `-- name: GetCategoryByName :one
 SELECT id, name, type, icon, color FROM categories
 WHERE name = ? LIMIT 1
@@ -68,6 +83,56 @@ func (q *Queries) GetCategoryByName(ctx context.Context, name string) (Category,
 		&i.Color,
 	)
 	return i, err
+}
+
+const getCategoryStats = `-- name: GetCategoryStats :many
+SELECT 
+    c.name, 
+    c.icon,
+    c.color,
+    c.type,
+    COALESCE(SUM(t.amount), 0) as total_amount
+FROM categories c
+LEFT JOIN transactions t ON c.id = t.category_id 
+    AND t.date >= ? -- Filter by start date (e.g. beginning of month)
+GROUP BY c.id
+`
+
+type GetCategoryStatsRow struct {
+	Name        string         `json:"name"`
+	Icon        sql.NullString `json:"icon"`
+	Color       sql.NullString `json:"color"`
+	Type        string         `json:"type"`
+	TotalAmount interface{}    `json:"total_amount"`
+}
+
+func (q *Queries) GetCategoryStats(ctx context.Context, date time.Time) ([]GetCategoryStatsRow, error) {
+	rows, err := q.query(ctx, q.getCategoryStatsStmt, getCategoryStats, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCategoryStatsRow
+	for rows.Next() {
+		var i GetCategoryStatsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Icon,
+			&i.Color,
+			&i.Type,
+			&i.TotalAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUser = `-- name: GetUser :one
