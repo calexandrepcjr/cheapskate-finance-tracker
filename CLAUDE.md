@@ -48,6 +48,10 @@ cheapskate-finance-tracker/
 │   ├── handlers_frontend_test.go # Handler tests
 │   ├── parser.go            # Transaction input parsing
 │   └── parser_test.go       # Parser unit tests
+├── scripts/
+│   ├── setup-hooks.sh       # Installs git hooks
+│   └── hooks/
+│       └── pre-commit       # Pre-commit hook (runs tests)
 ├── .air.toml                # Hot-reload configuration
 ├── sqlc.yaml                # SQLC code generator config
 ├── Makefile                 # Build automation
@@ -253,13 +257,19 @@ go test ./... -v
 | `server/main_test.go` | Integration tests for `ensureSchema`, `ensureSeed` |
 | `server/db/queries_test.go` | Database layer tests for all SQLC queries |
 
+### Git Pre-commit Hook
+
+A git pre-commit hook runs `go test ./...` before every commit. Install it with:
+
+```bash
+./scripts/setup-hooks.sh
+```
+
+This ensures all tests pass before any code can be committed, regardless of whether commits are made via CLI, IDE, or AI assistant.
+
 ### Claude Code Pre-commit Hook
 
-A Claude Code hook is configured in `.claude/settings.json` to automatically run tests before any git commit. This ensures:
-
-- All tests must pass before code can be committed
-- Prevents regression bugs from being introduced
-- Enforces test discipline for AI assistants
+A Claude Code hook is also configured in `.claude/settings.json` to run tests before commits made through Claude Code. This provides an additional layer of enforcement for AI-assisted development.
 
 **Important:** If tests fail during a commit attempt, fix the failing tests before retrying the commit.
 
@@ -305,3 +315,4 @@ After modifying `schema.sql`:
 | Add handler tests | `server/handlers_frontend_test.go` |
 | Add DB tests | `server/db/queries_test.go` |
 | Configure Claude hooks | `.claude/settings.json` |
+| Add/modify git hooks | `scripts/hooks/` |
