@@ -24,6 +24,8 @@ Cheapskate is a self-hosted, privacy-focused personal finance tracker built with
 
 ```
 cheapskate-finance-tracker/
+├── .claude/
+│   └── settings.json        # Claude Code hooks (pre-commit tests)
 ├── client/
 │   └── templates/           # Templ UI components
 │       ├── layout.templ     # Master layout wrapper
@@ -34,14 +36,18 @@ cheapskate-finance-tracker/
 │   ├── db/                  # Database layer
 │   │   ├── schema.sql       # SQLite schema definition
 │   │   ├── queries.sql      # SQLC query definitions
+│   │   ├── queries_test.go  # Database integration tests
 │   │   ├── models.go        # Generated models (DO NOT EDIT)
 │   │   ├── db.go            # Generated DB code (DO NOT EDIT)
 │   │   ├── querier.go       # Generated interface (DO NOT EDIT)
 │   │   └── queries.sql.go   # Generated queries (DO NOT EDIT)
 │   ├── main.go              # Application entry point
+│   ├── main_test.go         # Integration tests
 │   ├── routes.go            # HTTP route definitions
 │   ├── handlers_frontend.go # HTTP request handlers
-│   └── parser.go            # Transaction input parsing
+│   ├── handlers_frontend_test.go # Handler tests
+│   ├── parser.go            # Transaction input parsing
+│   └── parser_test.go       # Parser unit tests
 ├── .air.toml                # Hot-reload configuration
 ├── sqlc.yaml                # SQLC code generator config
 ├── Makefile                 # Build automation
@@ -206,7 +212,6 @@ for _, item := range items {
 
 - **Single-user:** User ID is hardcoded to 1 in handlers
 - **No authentication:** Anyone with access can view/create transactions
-- **No tests:** Test files have not been created yet
 - **Category inference:** Basic keyword matching, marked for LLM enhancement
 
 ## Architecture Notes
@@ -233,12 +238,38 @@ type Application struct {
 
 ## Testing Guidelines
 
-No tests exist currently. When adding tests:
+The project has comprehensive test coverage. Run tests with:
 
-- Unit tests for `parser.go` functions
-- Integration tests for database layer
-- Handler tests using `httptest`
-- Template rendering tests
+```bash
+go test ./... -v
+```
+
+### Test Files
+
+| File | Tests |
+|------|-------|
+| `server/parser_test.go` | Unit tests for `ParseTransaction`, `parseAmount`, `inferCategory`, `formatMoney` |
+| `server/handlers_frontend_test.go` | HTTP handler tests using `httptest` with in-memory SQLite |
+| `server/main_test.go` | Integration tests for `ensureSchema`, `ensureSeed` |
+| `server/db/queries_test.go` | Database layer tests for all SQLC queries |
+
+### Claude Code Pre-commit Hook
+
+A Claude Code hook is configured in `.claude/settings.json` to automatically run tests before any git commit. This ensures:
+
+- All tests must pass before code can be committed
+- Prevents regression bugs from being introduced
+- Enforces test discipline for AI assistants
+
+**Important:** If tests fail during a commit attempt, fix the failing tests before retrying the commit.
+
+### Writing New Tests
+
+- Use table-driven tests (Go idiom) for comprehensive coverage
+- Use `setupTestApp()` helper for handler tests (provides in-memory SQLite)
+- Use `setupTestDB()` helper for database tests
+- Test both success and error paths
+- Verify database state changes for mutation operations
 
 ## Common Issues
 
@@ -270,3 +301,7 @@ After modifying `schema.sql`:
 | Modify dashboard | `client/templates/dashboard.templ` |
 | Change dev server config | `.air.toml` |
 | Change SQLC settings | `sqlc.yaml` |
+| Add parser tests | `server/parser_test.go` |
+| Add handler tests | `server/handlers_frontend_test.go` |
+| Add DB tests | `server/db/queries_test.go` |
+| Configure Claude hooks | `.claude/settings.json` |
