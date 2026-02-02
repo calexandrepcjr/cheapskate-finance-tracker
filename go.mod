@@ -1,6 +1,6 @@
 module github.com/calexandrepcjr/cheapskate-finance-tracker
 
-go 1.25.5
+go 1.24
 
 require (
 	github.com/a-h/templ v0.3.977 // indirect
