@@ -1,0 +1,33 @@
+# Build artifacts
+bin/
+tmp/
+
+# Database files (handled via volume)
+*.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+LICENSE
+
+# Test files and data
+testdata/
+*_test.go
+
+# Development files
+.air.toml
+build-errors.log
+
+# OS files
+.DS_Store
+Thumbs.db
