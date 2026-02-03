@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /home/user/cheapskate-finance-tracker && go test ./... -v"
+            "command": "cd /home/user/cheapskate-finance-tracker && go test ./... -v && ./scripts/setup-hooks.sh"
           }
         ]
       }

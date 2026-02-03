@@ -21,6 +21,16 @@ if [ -f "$SOURCE_HOOKS_DIR/pre-commit" ]; then
     echo "  Installed: pre-commit"
 fi
 
+# Install commit-msg hook (conventional commits validation)
+if [ -f "$SOURCE_HOOKS_DIR/commit-msg" ]; then
+    cp "$SOURCE_HOOKS_DIR/commit-msg" "$HOOKS_DIR/commit-msg"
+    chmod +x "$HOOKS_DIR/commit-msg"
+    echo "  Installed: commit-msg"
+fi
+
 echo ""
 echo "Git hooks installed successfully!"
-echo "The pre-commit hook will run 'go test ./...' before each commit."
+echo ""
+echo "Hooks installed:"
+echo "  - pre-commit:  Runs 'go test ./...' before each commit"
+echo "  - commit-msg:  Enforces conventional commits format"

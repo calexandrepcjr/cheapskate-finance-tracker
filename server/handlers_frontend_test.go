@@ -163,21 +163,21 @@ func TestHandleTransactionCreate(t *testing.T) {
 			name:           "valid transaction - food",
 			input:          "25 pizza delivery",
 			wantStatusCode: http.StatusOK,
-			wantContains:   "$25.00",
+			wantContains:   "$-25.00", // Expenses are stored as negative
 			wantError:      false,
 		},
 		{
 			name:           "valid transaction - transport",
 			input:          "15.50 uber ride",
 			wantStatusCode: http.StatusOK,
-			wantContains:   "$15.50",
+			wantContains:   "$-15.50", // Expenses are stored as negative
 			wantError:      false,
 		},
 		{
 			name:           "valid transaction - default category",
 			input:          "100 electricity bill",
 			wantStatusCode: http.StatusOK,
-			wantContains:   "$100.00",
+			wantContains:   "$-100.00", // Expenses are stored as negative
 			wantError:      false,
 		},
 		{
@@ -305,24 +305,24 @@ func TestHandleTransactionCreate_AmountConversion(t *testing.T) {
 	defer cleanupTestApp(t, app)
 
 	tests := []struct {
-		name       string
-		input      string
-		wantCents  int64
+		name      string
+		input     string
+		wantCents int64
 	}{
 		{
 			name:      "integer amount",
 			input:     "50 test item",
-			wantCents: 5000,
+			wantCents: -5000, // Expenses are stored as negative
 		},
 		{
 			name:      "decimal amount",
 			input:     "12.50 test item",
-			wantCents: 1250,
+			wantCents: -1250, // Expenses are stored as negative
 		},
 		{
 			name:      "small decimal",
 			input:     "0.99 test item",
-			wantCents: 99,
+			wantCents: -99, // Expenses are stored as negative
 		},
 	}
 

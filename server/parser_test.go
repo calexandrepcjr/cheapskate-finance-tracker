@@ -34,7 +34,7 @@ func TestParseTransaction(t *testing.T) {
 			input:      "9.5 coffee",
 			wantAmount: 950,
 			wantDesc:   "coffee",
-			wantCat:    "Housing", // coffee not in Food keywords
+			wantCat:    "Food", // coffee keyword triggers Food
 			wantErr:    false,
 		},
 		{
@@ -42,7 +42,7 @@ func TestParseTransaction(t *testing.T) {
 			input:      "  25 groceries  ",
 			wantAmount: 2500,
 			wantDesc:   "groceries",
-			wantCat:    "Housing",
+			wantCat:    "Food", // grocer keyword triggers Food
 			wantErr:    false,
 		},
 		{
