@@ -107,6 +107,19 @@ func (app *Application) ensureSeed() error {
 			return err
 		}
 	}
+
+	// Ensure income categories have correct type (fixes old databases with Salary as expense)
+	_, err = app.DB.Exec(`UPDATE categories SET type = 'income' WHERE name IN ('Salary', 'Earned Income') AND type != 'income'`)
+	if err != nil {
+		log.Printf("Warning: Could not fix category types: %v", err)
+	}
+
+	// Ensure Salary category exists for backwards compatibility
+	_, err = app.DB.Exec(`INSERT OR IGNORE INTO categories (name, type, icon, color) VALUES ('Salary', 'income', '💰', '#2ECC71')`)
+	if err != nil {
+		log.Printf("Warning: Could not ensure Salary category: %v", err)
+	}
+
 	return nil
 }
 

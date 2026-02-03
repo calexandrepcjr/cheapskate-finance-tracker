@@ -27,8 +27,8 @@ CREATE TABLE transactions (
 );
 
 -- Seed some default categories
-INSERT INTO categories (name, type, icon, color) VALUES 
+INSERT INTO categories (name, type, icon, color) VALUES
 ('Food', 'expense', '🍔', '#FF5733'),
 ('Transport', 'expense', '🚕', '#33C1FF'),
 ('Housing', 'expense', '🏠', '#8D33FF'),
-('Salary', 'income', '💰', '#2ECC71');
+('Earned Income', 'income', '💰', '#2ECC71');

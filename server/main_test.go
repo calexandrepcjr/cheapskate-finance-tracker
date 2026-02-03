@@ -86,7 +86,7 @@ func TestEnsureSchema(t *testing.T) {
 		}
 
 		// Verify specific categories
-		expectedCategories := []string{"Food", "Transport", "Housing", "Salary"}
+		expectedCategories := []string{"Food", "Transport", "Housing", "Earned Income"}
 		for _, cat := range expectedCategories {
 			var name string
 			err := dbConn.QueryRow("SELECT name FROM categories WHERE name = ?", cat).Scan(&name)

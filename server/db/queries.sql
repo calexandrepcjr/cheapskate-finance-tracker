@@ -1,9 +1,9 @@
 -- name: GetUser :one
-SELECT id, name, email, created_at FROM users
+SELECT * FROM users
 WHERE id = ? LIMIT 1;
 
 -- name: ListUsers :many
-SELECT id, name, email, created_at FROM users
+SELECT * FROM users
 ORDER BY name;
 
 -- name: CreateTransaction :one
@@ -12,10 +12,10 @@ INSERT INTO transactions (
 ) VALUES (
   ?, ?, ?, ?, ?, ?
 )
-RETURNING id, user_id, category_id, amount, currency, description, date, created_at;
+RETURNING *;
 
 -- name: ListRecentTransactions :many
-SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, c.name as category_name, c.icon as category_icon, u.name as user_name
+SELECT t.*, c.name as category_name, c.icon as category_icon, u.name as user_name
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
@@ -23,24 +23,64 @@ ORDER BY t.date DESC
 LIMIT 20;
 
 -- name: GetCategoryByName :one
-SELECT id, name, type, icon, color FROM categories
+SELECT * FROM categories
 WHERE name = ? LIMIT 1;
 
 -- name: ListCategories :many
-SELECT id, name, type, icon, color FROM categories
+SELECT * FROM categories
 ORDER BY type, name;
 
--- name: GetCategoryStats :many
-SELECT 
-    c.name, 
-    c.icon,
-    c.color,
-    c.type,
-    COALESCE(SUM(t.amount), 0) as total_amount
+-- name: GetDistinctTransactionYears :many
+SELECT DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year
+FROM transactions
+ORDER BY year DESC;
+
+-- name: ListTransactionsByYear :many
+SELECT t.*, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+JOIN users u ON t.user_id = u.id
+WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+ORDER BY t.date DESC;
+
+-- name: ListTransactionsByYearPaginated :many
+SELECT t.*, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+JOIN users u ON t.user_id = u.id
+WHERE strftime('%Y', t.date) = CAST(sqlc.arg(year) AS TEXT)
+ORDER BY t.date DESC
+LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
+
+-- name: CountTransactionsByYear :one
+SELECT COUNT(*) as count
+FROM transactions t
+WHERE strftime('%Y', t.date) = CAST(? AS TEXT);
+
+-- name: GetCategoryTotalsByYear :many
+SELECT
+    c.id as category_id,
+    c.name as category_name,
+    c.icon as category_icon,
+    c.type as category_type,
+    c.color as category_color,
+    CAST(COALESCE(SUM(ABS(t.amount)), 0) AS INTEGER) as total_amount,
+    COUNT(t.id) as transaction_count
 FROM categories c
-LEFT JOIN transactions t ON c.id = t.category_id 
-    AND t.date >= ? -- Filter by start date (e.g. beginning of month)
-GROUP BY c.id;
+LEFT JOIN transactions t ON t.category_id = c.id AND strftime('%Y', t.date) = CAST(? AS TEXT)
+GROUP BY c.id, c.name, c.icon, c.type, c.color
+ORDER BY c.type, total_amount DESC;
+
+-- name: GetMonthlyTotalsByYear :many
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) as month,
+    c.type as category_type,
+    CAST(COALESCE(SUM(ABS(amount)), 0) AS INTEGER) as total_amount
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+GROUP BY month, c.type
+ORDER BY month;
 
 -- name: DeleteTransaction :exec
 DELETE FROM transactions

@@ -54,26 +54,37 @@ func parseAmount(s string) (int64, error) {
 func inferCategory(desc string) string {
 	desc = strings.ToLower(desc)
 
-	// Income
-	if strings.Contains(desc, "salary") || strings.Contains(desc, "paycheck") || strings.Contains(desc, "deposit") {
-		return "Salary"
-	}
-	if strings.Contains(desc, "freelance") || strings.Contains(desc, "contract") {
-		return "Salary" // Or generic Income if we had it
-	}
-
-	// Food
-	if strings.Contains(desc, "pizza") || strings.Contains(desc, "food") || strings.Contains(desc, "burger") ||
-		strings.Contains(desc, "grocer") || strings.Contains(desc, "market") || strings.Contains(desc, "lunch") ||
-		strings.Contains(desc, "dinner") || strings.Contains(desc, "coffee") {
-		return "Food"
+	// Income keywords - check first
+	incomeKeywords := []string{"salary", "paycheck", "income", "wage", "bonus", "freelance", "dividend", "interest", "refund"}
+	for _, kw := range incomeKeywords {
+		if strings.Contains(desc, kw) {
+			return "Earned Income"
+		}
 	}
 
-	// Transport
-	if strings.Contains(desc, "taxi") || strings.Contains(desc, "uber") || strings.Contains(desc, "bus") ||
-		strings.Contains(desc, "gas") || strings.Contains(desc, "fuel") || strings.Contains(desc, "train") {
-		return "Transport"
+	// Food keywords
+	foodKeywords := []string{"pizza", "food", "burger", "grocery", "groceries", "restaurant", "lunch", "dinner", "breakfast", "coffee", "cafe", "snack", "meal", "takeout", "delivery", "doordash", "ubereats", "grubhub"}
+	for _, kw := range foodKeywords {
+		if strings.Contains(desc, kw) {
+			return "Food"
+		}
 	}
 
-	return "Housing" // Default fallback
+	// Transport keywords
+	transportKeywords := []string{"taxi", "uber", "bus", "gas", "fuel", "lyft", "metro", "subway", "train", "parking", "toll", "car", "auto", "vehicle", "flight", "airline", "ticket"}
+	for _, kw := range transportKeywords {
+		if strings.Contains(desc, kw) {
+			return "Transport"
+		}
+	}
+
+	// Housing keywords (explicit match before defaulting)
+	housingKeywords := []string{"rent", "mortgage", "electricity", "electric", "water", "internet", "wifi", "cable", "phone", "utility", "utilities", "insurance", "maintenance", "repair", "furniture", "appliance"}
+	for _, kw := range housingKeywords {
+		if strings.Contains(desc, kw) {
+			return "Housing"
+		}
+	}
+
+	return "Housing" // Default fallback for unrecognized expenses
 }

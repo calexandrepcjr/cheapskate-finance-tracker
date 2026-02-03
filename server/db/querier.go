@@ -6,17 +6,18 @@ package db
 
 import (
 	"context"
-	"time"
 )
 
 type Querier interface {
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
-	DeleteTransaction(ctx context.Context, arg DeleteTransactionParams) error
 	GetCategoryByName(ctx context.Context, name string) (Category, error)
-	GetCategoryStats(ctx context.Context, date time.Time) ([]GetCategoryStatsRow, error)
+	GetCategoryTotalsByYear(ctx context.Context, dollar_1 string) ([]GetCategoryTotalsByYearRow, error)
+	GetDistinctTransactionYears(ctx context.Context) ([]int64, error)
+	GetMonthlyTotalsByYear(ctx context.Context, dollar_1 string) ([]GetMonthlyTotalsByYearRow, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	ListCategories(ctx context.Context) ([]Category, error)
 	ListRecentTransactions(ctx context.Context) ([]ListRecentTransactionsRow, error)
+	ListTransactionsByYear(ctx context.Context, dollar_1 string) ([]ListTransactionsByYearRow, error)
 	ListUsers(ctx context.Context) ([]User, error)
 }
 
