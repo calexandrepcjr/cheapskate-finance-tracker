@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.countTransactionsByYearStmt, err = db.PrepareContext(ctx, countTransactionsByYear); err != nil {
+		return nil, fmt.Errorf("error preparing query CountTransactionsByYear: %w", err)
+	}
 	if q.createTransactionStmt, err = db.PrepareContext(ctx, createTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTransaction: %w", err)
 	}
@@ -33,8 +36,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getCategoryByNameStmt, err = db.PrepareContext(ctx, getCategoryByName); err != nil {
 		return nil, fmt.Errorf("error preparing query GetCategoryByName: %w", err)
 	}
-	if q.getCategoryStatsStmt, err = db.PrepareContext(ctx, getCategoryStats); err != nil {
-		return nil, fmt.Errorf("error preparing query GetCategoryStats: %w", err)
+	if q.getCategoryTotalsByYearStmt, err = db.PrepareContext(ctx, getCategoryTotalsByYear); err != nil {
+		return nil, fmt.Errorf("error preparing query GetCategoryTotalsByYear: %w", err)
+	}
+	if q.getDistinctTransactionYearsStmt, err = db.PrepareContext(ctx, getDistinctTransactionYears); err != nil {
+		return nil, fmt.Errorf("error preparing query GetDistinctTransactionYears: %w", err)
+	}
+	if q.getMonthlyTotalsByYearStmt, err = db.PrepareContext(ctx, getMonthlyTotalsByYear); err != nil {
+		return nil, fmt.Errorf("error preparing query GetMonthlyTotalsByYear: %w", err)
 	}
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
@@ -45,6 +54,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listRecentTransactionsStmt, err = db.PrepareContext(ctx, listRecentTransactions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListRecentTransactions: %w", err)
 	}
+	if q.listTransactionsByYearStmt, err = db.PrepareContext(ctx, listTransactionsByYear); err != nil {
+		return nil, fmt.Errorf("error preparing query ListTransactionsByYear: %w", err)
+	}
+	if q.listTransactionsByYearPaginatedStmt, err = db.PrepareContext(ctx, listTransactionsByYearPaginated); err != nil {
+		return nil, fmt.Errorf("error preparing query ListTransactionsByYearPaginated: %w", err)
+	}
 	if q.listUsersStmt, err = db.PrepareContext(ctx, listUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListUsers: %w", err)
 	}
@@ -53,6 +68,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.countTransactionsByYearStmt != nil {
+		if cerr := q.countTransactionsByYearStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countTransactionsByYearStmt: %w", cerr)
+		}
+	}
 	if q.createTransactionStmt != nil {
 		if cerr := q.createTransactionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createTransactionStmt: %w", cerr)
@@ -68,9 +88,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getCategoryByNameStmt: %w", cerr)
 		}
 	}
-	if q.getCategoryStatsStmt != nil {
-		if cerr := q.getCategoryStatsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getCategoryStatsStmt: %w", cerr)
+	if q.getCategoryTotalsByYearStmt != nil {
+		if cerr := q.getCategoryTotalsByYearStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getCategoryTotalsByYearStmt: %w", cerr)
+		}
+	}
+	if q.getDistinctTransactionYearsStmt != nil {
+		if cerr := q.getDistinctTransactionYearsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getDistinctTransactionYearsStmt: %w", cerr)
+		}
+	}
+	if q.getMonthlyTotalsByYearStmt != nil {
+		if cerr := q.getMonthlyTotalsByYearStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getMonthlyTotalsByYearStmt: %w", cerr)
 		}
 	}
 	if q.getUserStmt != nil {
@@ -86,6 +116,16 @@ func (q *Queries) Close() error {
 	if q.listRecentTransactionsStmt != nil {
 		if cerr := q.listRecentTransactionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listRecentTransactionsStmt: %w", cerr)
+		}
+	}
+	if q.listTransactionsByYearStmt != nil {
+		if cerr := q.listTransactionsByYearStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listTransactionsByYearStmt: %w", cerr)
+		}
+	}
+	if q.listTransactionsByYearPaginatedStmt != nil {
+		if cerr := q.listTransactionsByYearPaginatedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listTransactionsByYearPaginatedStmt: %w", cerr)
 		}
 	}
 	if q.listUsersStmt != nil {
@@ -130,29 +170,39 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                         DBTX
-	tx                         *sql.Tx
-	createTransactionStmt      *sql.Stmt
-	deleteTransactionStmt      *sql.Stmt
-	getCategoryByNameStmt      *sql.Stmt
-	getCategoryStatsStmt       *sql.Stmt
-	getUserStmt                *sql.Stmt
-	listCategoriesStmt         *sql.Stmt
-	listRecentTransactionsStmt *sql.Stmt
-	listUsersStmt              *sql.Stmt
+	db                                  DBTX
+	tx                                  *sql.Tx
+	countTransactionsByYearStmt         *sql.Stmt
+	createTransactionStmt               *sql.Stmt
+	deleteTransactionStmt               *sql.Stmt
+	getCategoryByNameStmt               *sql.Stmt
+	getCategoryTotalsByYearStmt         *sql.Stmt
+	getDistinctTransactionYearsStmt     *sql.Stmt
+	getMonthlyTotalsByYearStmt          *sql.Stmt
+	getUserStmt                         *sql.Stmt
+	listCategoriesStmt                  *sql.Stmt
+	listRecentTransactionsStmt          *sql.Stmt
+	listTransactionsByYearStmt          *sql.Stmt
+	listTransactionsByYearPaginatedStmt *sql.Stmt
+	listUsersStmt                       *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                         tx,
-		tx:                         tx,
-		createTransactionStmt:      q.createTransactionStmt,
-		deleteTransactionStmt:      q.deleteTransactionStmt,
-		getCategoryByNameStmt:      q.getCategoryByNameStmt,
-		getCategoryStatsStmt:       q.getCategoryStatsStmt,
-		getUserStmt:                q.getUserStmt,
-		listCategoriesStmt:         q.listCategoriesStmt,
-		listRecentTransactionsStmt: q.listRecentTransactionsStmt,
-		listUsersStmt:              q.listUsersStmt,
+		db:                                  tx,
+		tx:                                  tx,
+		countTransactionsByYearStmt:         q.countTransactionsByYearStmt,
+		createTransactionStmt:               q.createTransactionStmt,
+		deleteTransactionStmt:               q.deleteTransactionStmt,
+		getCategoryByNameStmt:               q.getCategoryByNameStmt,
+		getCategoryTotalsByYearStmt:         q.getCategoryTotalsByYearStmt,
+		getDistinctTransactionYearsStmt:     q.getDistinctTransactionYearsStmt,
+		getMonthlyTotalsByYearStmt:          q.getMonthlyTotalsByYearStmt,
+		getUserStmt:                         q.getUserStmt,
+		listCategoriesStmt:                  q.listCategoriesStmt,
+		listRecentTransactionsStmt:          q.listRecentTransactionsStmt,
+		listTransactionsByYearStmt:          q.listTransactionsByYearStmt,
+		listTransactionsByYearPaginatedStmt: q.listTransactionsByYearPaginatedStmt,
+		listUsersStmt:                       q.listUsersStmt,
 	}
 }

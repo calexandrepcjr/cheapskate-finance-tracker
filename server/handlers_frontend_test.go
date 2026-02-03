@@ -58,7 +58,7 @@ func setupTestApp(t *testing.T) *Application {
 		('Food', 'expense', '🍔', '#FF5733'),
 		('Transport', 'expense', '🚕', '#33C1FF'),
 		('Housing', 'expense', '🏠', '#8D33FF'),
-		('Salary', 'income', '💰', '#2ECC71');
+		('Earned Income', 'income', '💰', '#2ECC71');
 
 		INSERT INTO users (name, email) VALUES ('TestUser', 'test@example.com');
 	`
@@ -163,21 +163,21 @@ func TestHandleTransactionCreate(t *testing.T) {
 			name:           "valid transaction - food",
 			input:          "25 pizza delivery",
 			wantStatusCode: http.StatusOK,
-			wantContains:   "$-25.00", // Expenses are stored and displayed as negative
+			wantContains:   "$25.00",
 			wantError:      false,
 		},
 		{
 			name:           "valid transaction - transport",
 			input:          "15.50 uber ride",
 			wantStatusCode: http.StatusOK,
-			wantContains:   "$-15.50", // Expenses are stored and displayed as negative
+			wantContains:   "$15.50",
 			wantError:      false,
 		},
 		{
 			name:           "valid transaction - default category",
 			input:          "100 electricity bill",
 			wantStatusCode: http.StatusOK,
-			wantContains:   "$-100.00", // Expenses are stored and displayed as negative
+			wantContains:   "$100.00",
 			wantError:      false,
 		},
 		{
@@ -298,6 +298,121 @@ func TestHandleTransactionCreate_CategoryResolution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleDashboardDetailed(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	t.Run("empty transactions", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboardDetailed(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleDashboardDetailed() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "Analytics") {
+			t.Error("HandleDashboardDetailed() should contain 'Analytics' title")
+		}
+	})
+
+	t.Run("with transactions", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      5000,
+			Currency:    "USD",
+			Description: "Test expense",
+			Date:        time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create test transaction: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboardDetailed(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleDashboardDetailed() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "$50.00") {
+			t.Error("HandleDashboardDetailed() should display formatted amount")
+		}
+	})
+}
+
+func TestHandleDashboard_YearFilter(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	// Create transactions in different years
+	ctx := context.Background()
+
+	// Transaction for 2025
+	_, err := app.DB.ExecContext(ctx, `
+		INSERT INTO transactions (user_id, category_id, amount, currency, description, date)
+		VALUES (1, 1, 2500, 'USD', 'Old transaction', '2025-06-15 10:00:00')
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create 2025 transaction: %v", err)
+	}
+
+	// Transaction for current year
+	_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      3500,
+		Currency:    "USD",
+		Description: "Current year transaction",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create current year transaction: %v", err)
+	}
+
+	t.Run("default to current year", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboard(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleDashboard() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "Current year transaction") {
+			t.Error("HandleDashboard() should show current year transaction by default")
+		}
+	})
+
+	t.Run("filter by 2025", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard?year=2025", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboard(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleDashboard() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "Old transaction") {
+			t.Error("HandleDashboard() should show 2025 transaction when year=2025")
+		}
+		if strings.Contains(body, "Current year transaction") {
+			t.Error("HandleDashboard() should NOT show current year transaction when year=2025")
+		}
+	})
 }
 
 func TestHandleTransactionCreate_AmountConversion(t *testing.T) {

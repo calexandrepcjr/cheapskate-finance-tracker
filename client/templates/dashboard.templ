@@ -3,117 +3,356 @@ package templates
 import "github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 import "fmt"
 import "database/sql"
+import "time"
 
-templ Dashboard(transactions []db.ListRecentTransactionsRow, stats map[string]int64) {
-	@Layout("Home Dashboard", HouseView(transactions, stats))
+templ Dashboard(transactions []db.ListTransactionsByYearPaginatedRow, categoryTotals []db.GetCategoryTotalsByYearRow, years []db.GetDistinctTransactionYearsRow, selectedYear string, totalCount int64, hasMore bool) {
+	@Layout("Dashboard", DashboardSummaryView(transactions, categoryTotals, years, selectedYear, totalCount, hasMore))
 }
 
-templ HouseView(transactions []db.ListRecentTransactionsRow, stats map[string]int64) {
-	<div class="space-y-6" x-data="{ showEmpty: false }">
-		<header class="flex justify-between items-end">
-			<h2 class="text-2xl font-bold">The House</h2>
+templ DashboardDetailed(categoryTotals []db.GetCategoryTotalsByYearRow, monthlyTotals []db.GetMonthlyTotalsByYearRow, years []db.GetDistinctTransactionYearsRow, selectedYear string) {
+	@Layout("Dashboard - Detailed", DashboardDetailedView(categoryTotals, monthlyTotals, years, selectedYear))
+}
+
+templ YearFilter(years []db.GetDistinctTransactionYearsRow, selectedYear string, basePath string) {
+	<div class="flex items-center gap-2 flex-wrap">
+		<span class="text-sm text-gray-500 font-medium">Year:</span>
+		for _, y := range years {
+			if fmt.Sprintf("%d", y.Year) == selectedYear {
+				<span class="px-3 py-1 bg-purple-600 text-white text-sm font-medium rounded-full">
+					{ fmt.Sprintf("%d", y.Year) }
+				</span>
+			} else {
+				<a
+					href={ templ.SafeURL(fmt.Sprintf("%s?year=%d", basePath, y.Year)) }
+					class="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-full transition"
+				>
+					{ fmt.Sprintf("%d", y.Year) }
+				</a>
+			}
+		}
+	</div>
+}
+
+templ ViewToggle(isDetailed bool, selectedYear string) {
+	if isDetailed {
+		<a
+			href={ templ.SafeURL(fmt.Sprintf("/dashboard?year=%s", selectedYear)) }
+			class="p-2 bg-pink-100 hover:bg-pink-200 rounded-lg transition text-xl"
+			title="Switch to Simple View"
+		>
+			👶
+		</a>
+	} else {
+		<a
+			href={ templ.SafeURL(fmt.Sprintf("/dashboard/detailed?year=%s", selectedYear)) }
+			class="p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-xl"
+			title="Switch to Detailed View"
+		>
+			📊
+		</a>
+	}
+}
+
+templ DashboardSummaryView(transactions []db.ListTransactionsByYearPaginatedRow, categoryTotals []db.GetCategoryTotalsByYearRow, years []db.GetDistinctTransactionYearsRow, selectedYear string, totalCount int64, hasMore bool) {
+	<div class="space-y-6">
+		<!-- Header with Year Filter and View Toggle -->
+		<header class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
 			<div class="flex items-center gap-4">
-				<span class="text-sm text-gray-500">This Month</span>
-				<button 
-					@click="showEmpty = !showEmpty"
-					class="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition"
-					title="Toggle empty rooms">
-					<span x-show="!showEmpty">👁️</span>
-					<span x-show="showEmpty" class="opacity-50">🙈</span>
-				</button>
+				<h2 class="text-2xl font-bold">The House</h2>
+				@ViewToggle(false, selectedYear)
 			</div>
+			@YearFilter(years, selectedYear, "/dashboard")
 		</header>
 
-		<!-- House Visualization (Grid) -->
-		<div class="relative w-full aspect-square max-w-sm mx-auto bg-gray-100 rounded-3xl p-4 shadow-inner border-4 border-gray-200 overflow-hidden grid grid-cols-2 grid-rows-2 gap-2">
-			<!-- Room 1: Living (Housing) -->
-			<div class="bg-white rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
-				 x-show="showEmpty || $el.dataset.amount != '0'"
-				 data-amount={ fmt.Sprintf("%d", stats["Housing"]) }>
-				<div class="flex justify-between items-start">
-					<div class="text-2xl">🛋️</div>
-					<div class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Housing</div>
-				</div>
-				<div class="text-right font-bold text-gray-700">{ formatMoney(stats["Housing"]) }</div>
+		<!-- Category Mosaic -->
+		<div class="space-y-3">
+			<h3 class="font-bold text-gray-400 text-sm uppercase tracking-wider">Categories</h3>
+			<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+				for _, cat := range categoryTotals {
+					@CategoryCard(cat)
+				}
 			</div>
-
-			<!-- Room 2: Kitchen (Food) -->
-			<div class="bg-orange-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
-				 x-show="showEmpty || $el.dataset.amount != '0'"
-				 data-amount={ fmt.Sprintf("%d", stats["Food"]) }>
-				<div class="flex justify-between items-start">
-					<div class="text-2xl">🍳</div>
-					<div class="text-[10px] uppercase font-bold text-orange-300 tracking-wider">Food</div>
-				</div>
-				<div class="text-right font-bold text-orange-700">{ formatMoney(stats["Food"]) }</div>
-			</div>
-
-			<!-- Room 3: Bedroom (Personal/Salary as placeholder) -->
-			<div class="bg-blue-50 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
-				 x-show="showEmpty || $el.dataset.amount != '0'"
-				 data-amount={ fmt.Sprintf("%d", stats["Salary"]) }>
-				<div class="flex justify-between items-start">
-					<div class="text-2xl">🛏️</div>
-					<div class="text-[10px] uppercase font-bold text-blue-300 tracking-wider">Income</div>
-				</div>
-				<div class="text-right font-bold text-blue-700">{ formatMoney(stats["Salary"]) }</div>
-			</div>
-
-			<!-- Room 4: Garage/Misc (Transport) -->
-			<div class="bg-gray-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:shadow-md transition"
-				 x-show="showEmpty || $el.dataset.amount != '0'"
-				 data-amount={ fmt.Sprintf("%d", stats["Transport"]) }>
-				<div class="flex justify-between items-start">
-					<div class="text-2xl">📦</div>
-					<div class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Transport</div>
-				</div>
-				<div class="text-right font-bold text-gray-700">{ formatMoney(stats["Transport"]) }</div>
-			</div>
-			
-			<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-6xl opacity-10 pointer-events-none">🏠</div>
 		</div>
 
-		<!-- Recent List -->
+		<!-- Summary Stats -->
+		<div class="grid grid-cols-3 gap-4">
+			<div class="bg-green-50 rounded-xl p-4 border border-green-100">
+				<div class="text-sm text-green-600 font-medium">Total Income</div>
+				<div class="text-2xl font-bold text-green-700">{ formatMoney(calcTotalByType(categoryTotals, "income")) }</div>
+			</div>
+			<div class="bg-red-50 rounded-xl p-4 border border-red-100">
+				<div class="text-sm text-red-600 font-medium">Total Expenses</div>
+				<div class="text-2xl font-bold text-red-700">{ formatMoney(calcTotalByType(categoryTotals, "expense")) }</div>
+			</div>
+			<div class={ "rounded-xl p-4 border", getBalanceBgClass(calcTotalByType(categoryTotals, "income"), calcTotalByType(categoryTotals, "expense")) }>
+				<div class="text-sm font-medium text-gray-600">Balance</div>
+				<div class={ "text-2xl font-bold", getBalanceTextClass(calcTotalByType(categoryTotals, "income"), calcTotalByType(categoryTotals, "expense")) }>
+					{ formatMoneyWithSign(calcTotalByType(categoryTotals, "income") - calcTotalByType(categoryTotals, "expense")) }
+				</div>
+			</div>
+		</div>
+
+		<!-- Transactions List -->
 		<div class="space-y-3">
-			<h3 class="font-bold text-gray-400 text-sm uppercase tracking-wider">Recent</h3>
-			<ul class="space-y-2">
-				for _, t := range transactions {
-					<li class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group relative">
-						<div class="flex items-center gap-3">
-							<span class="text-2xl bg-gray-50 p-2 rounded-lg">{ unwrapString(t.CategoryIcon) }</span>
-							<div>
-								<div class="font-bold text-gray-800">{ t.Description }</div>
-								<div class="text-xs text-gray-400">{ t.CategoryName }</div>
-							</div>
-						</div>
-						<div class="flex items-center gap-4">
-							<div class={ "font-bold font-mono", 
-								templ.KV("text-rose-600", t.Amount < 0),
-								templ.KV("text-emerald-600", t.Amount > 0),
-								templ.KV("text-gray-900", t.Amount == 0) }>
-								{ formatMoney(t.Amount) }
-							</div>
-							
-							<!-- Delete Button (Visible on Hover/Focus, always on mobile) -->
-							<button 
-								class="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full"
-								hx-delete={ fmt.Sprintf("/api/transaction/%d", t.ID) }
-								hx-target="closest li"
-								hx-swap="outerHTML"
-								hx-confirm="Are you sure you want to delete this transaction?"
-								title="Delete">
-								🗑️
-							</button>
-						</div>
-					</li>
+			<h3 class="font-bold text-gray-400 text-sm uppercase tracking-wider">
+				Transactions ({ fmt.Sprintf("%d", totalCount) })
+			</h3>
+			if len(transactions) == 0 {
+				<div class="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
+					<div class="text-4xl mb-2">📭</div>
+					<p>No transactions for { selectedYear } yet.</p>
+					<a href="/" class="text-purple-600 hover:underline mt-2 inline-block">Add your first transaction</a>
+				</div>
+			} else {
+				<ul id="transactions-list" class="space-y-2">
+					for _, t := range transactions {
+						@TransactionItem(t)
+					}
+				</ul>
+				if hasMore {
+					<div id="load-more-container">
+						@LoadMoreButton(selectedYear, int64(len(transactions)))
+					</div>
 				}
-			</ul>
+			}
 		</div>
 	</div>
-	
-	<!-- Alpine.js for visibility toggle -->
-	<script src="//unpkg.com/alpinejs" defer></script>
 }
+
+templ TransactionItem(t db.ListTransactionsByYearPaginatedRow) {
+	<li class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+		<div class="flex items-center gap-3">
+			<span class="text-2xl bg-gray-50 p-2 rounded-lg">{ unwrapString(t.CategoryIcon) }</span>
+			<div>
+				<div class="font-bold text-gray-800">{ t.Description }</div>
+				<div class="text-xs text-gray-400">{ t.CategoryName } · { formatDate(t.Date) }</div>
+			</div>
+		</div>
+		<div class={ "font-bold font-mono", getAmountColorClass(t.CategoryType) }>
+			if t.CategoryType == "income" {
+				+{ formatMoney(t.Amount) }
+			} else {
+				-{ formatMoney(t.Amount) }
+			}
+		</div>
+	</li>
+}
+
+templ LoadMoreButton(year string, nextOffset int64) {
+	<button
+		hx-get={ fmt.Sprintf("/api/transactions?year=%s&offset=%d", year, nextOffset) }
+		hx-target="#transactions-list"
+		hx-swap="beforeend"
+		hx-trigger="click, revealed"
+		hx-indicator="#load-more-spinner"
+		class="w-full py-3 text-center text-purple-600 hover:text-purple-800 font-medium bg-purple-50 hover:bg-purple-100 rounded-xl transition flex items-center justify-center gap-2"
+	>
+		<span class="htmx-indicator" id="load-more-spinner">
+			<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+				<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+			</svg>
+		</span>
+		Load More...
+	</button>
+}
+
+templ TransactionsList(transactions []db.ListTransactionsByYearPaginatedRow, year string, nextOffset int64, hasMore bool) {
+	for _, t := range transactions {
+		@TransactionItem(t)
+	}
+	if hasMore {
+		<div id="load-more-container" hx-swap-oob="true">
+			@LoadMoreButton(year, nextOffset)
+		</div>
+	} else {
+		<div id="load-more-container" hx-swap-oob="true">
+			<div class="text-center text-gray-400 py-2 text-sm">No more transactions</div>
+		</div>
+	}
+}
+
+templ CategoryCard(cat db.GetCategoryTotalsByYearRow) {
+	<div class={ "rounded-xl p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition min-h-[100px]", getCategoryBgClass(cat.CategoryType) }>
+		<div class="flex items-center justify-between">
+			<span class="text-2xl">{ unwrapString(cat.CategoryIcon) }</span>
+			if cat.TransactionCount > 0 {
+				<span class="text-xs bg-white/50 px-2 py-0.5 rounded-full">
+					{ fmt.Sprintf("%d", cat.TransactionCount) }
+				</span>
+			}
+		</div>
+		<div>
+			<div class="text-xs text-gray-600 truncate">{ cat.CategoryName }</div>
+			<div class={ "font-bold text-right", getCategoryTextClass(cat.CategoryType) }>
+				{ formatMoney(cat.TotalAmount) }
+			</div>
+		</div>
+	</div>
+}
+
+templ DashboardDetailedView(categoryTotals []db.GetCategoryTotalsByYearRow, monthlyTotals []db.GetMonthlyTotalsByYearRow, years []db.GetDistinctTransactionYearsRow, selectedYear string) {
+	<div class="space-y-6">
+		<!-- Header with Year Filter and View Toggle -->
+		<header class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+			<div class="flex items-center gap-4">
+				<h2 class="text-2xl font-bold">Analytics</h2>
+				@ViewToggle(true, selectedYear)
+			</div>
+			@YearFilter(years, selectedYear, "/dashboard/detailed")
+		</header>
+
+		<!-- Summary Cards -->
+		<div class="grid grid-cols-3 gap-4">
+			<div class="bg-green-50 rounded-xl p-4 border border-green-100">
+				<div class="text-sm text-green-600 font-medium">Income</div>
+				<div class="text-xl font-bold text-green-700">{ formatMoney(calcTotalByType(categoryTotals, "income")) }</div>
+			</div>
+			<div class="bg-red-50 rounded-xl p-4 border border-red-100">
+				<div class="text-sm text-red-600 font-medium">Expenses</div>
+				<div class="text-xl font-bold text-red-700">{ formatMoney(calcTotalByType(categoryTotals, "expense")) }</div>
+			</div>
+			<div class={ "rounded-xl p-4 border", getBalanceBgClass(calcTotalByType(categoryTotals, "income"), calcTotalByType(categoryTotals, "expense")) }>
+				<div class="text-sm font-medium text-gray-600">Balance</div>
+				<div class={ "text-xl font-bold", getBalanceTextClass(calcTotalByType(categoryTotals, "income"), calcTotalByType(categoryTotals, "expense")) }>
+					{ formatMoneyWithSign(calcTotalByType(categoryTotals, "income") - calcTotalByType(categoryTotals, "expense")) }
+				</div>
+			</div>
+		</div>
+
+		<!-- Pie Chart Section -->
+		<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+			<h3 class="font-bold text-gray-700 mb-4">Spending by Category</h3>
+			@PieChart(filterByType(categoryTotals, "expense"))
+		</div>
+
+		<!-- Monthly Trend -->
+		<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+			<h3 class="font-bold text-gray-700 mb-4">Monthly Trend</h3>
+			@MonthlyBarChart(monthlyTotals)
+		</div>
+
+		<!-- Category Breakdown Table -->
+		<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+			<h3 class="font-bold text-gray-700 mb-4">Category Breakdown</h3>
+			<div class="space-y-2">
+				for _, cat := range categoryTotals {
+					if cat.TransactionCount > 0 {
+						<div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+							<div class="flex items-center gap-3">
+								<span class="text-xl">{ unwrapString(cat.CategoryIcon) }</span>
+								<div>
+									<div class="font-medium text-gray-800">{ cat.CategoryName }</div>
+									<div class="text-xs text-gray-400">
+										{ fmt.Sprintf("%d transactions", cat.TransactionCount) }
+									</div>
+								</div>
+							</div>
+							<div class={ "font-bold font-mono", getCategoryAmountClass(cat.CategoryType) }>
+								{ formatMoney(cat.TotalAmount) }
+							</div>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ PieChart(expenses []db.GetCategoryTotalsByYearRow) {
+	if calcTotal(expenses) == 0 {
+		<div class="text-center text-gray-500 py-8">
+			<div class="text-4xl mb-2">📊</div>
+			<p>No expense data to display</p>
+		</div>
+	} else {
+		<div class="flex flex-col sm:flex-row items-center gap-6">
+			<!-- CSS Pie Chart -->
+			<div class="relative w-48 h-48">
+				<div
+					class="w-full h-full rounded-full"
+					style={ generatePieChartStyle(expenses) }
+				></div>
+				<div class="absolute inset-0 flex items-center justify-center">
+					<div class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-inner">
+						<div class="text-center">
+							<div class="text-xs text-gray-500">Total</div>
+							<div class="font-bold text-gray-800">{ formatMoney(calcTotal(expenses)) }</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- Legend -->
+			<div class="flex-1 grid grid-cols-2 gap-2">
+				for _, cat := range expenses {
+					if cat.TotalAmount > 0 {
+						<div class="flex items-center gap-2">
+							<div
+								class="w-3 h-3 rounded-full"
+								style={ fmt.Sprintf("background-color: %s", getCategoryColor(cat)) }
+							></div>
+							<span class="text-sm text-gray-600 truncate">{ cat.CategoryName }</span>
+							<span class="text-sm font-medium text-gray-800">
+								{ fmt.Sprintf("%.0f%%", float64(cat.TotalAmount)/float64(calcTotal(expenses))*100) }
+							</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	}
+}
+
+templ MonthlyBarChart(monthlyTotals []db.GetMonthlyTotalsByYearRow) {
+	if len(monthlyTotals) == 0 {
+		<div class="text-center text-gray-500 py-8">
+			<div class="text-4xl mb-2">📈</div>
+			<p>No monthly data to display</p>
+		</div>
+	} else {
+		<div class="space-y-4">
+			<!-- Bar Chart -->
+			<div class="flex items-end gap-1 h-40">
+				for month := 1; month <= 12; month++ {
+					@MonthBar(month, monthlyTotals, getMaxMonthlyTotal(monthlyTotals))
+				}
+			</div>
+			<!-- Legend -->
+			<div class="flex justify-center gap-6 text-sm">
+				<div class="flex items-center gap-2">
+					<div class="w-3 h-3 rounded bg-green-500"></div>
+					<span class="text-gray-600">Income</span>
+				</div>
+				<div class="flex items-center gap-2">
+					<div class="w-3 h-3 rounded bg-red-400"></div>
+					<span class="text-gray-600">Expenses</span>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ MonthBar(month int, monthlyTotals []db.GetMonthlyTotalsByYearRow, maxTotal int64) {
+	<div class="flex-1 flex flex-col items-center gap-1">
+		<div class="w-full flex flex-col gap-0.5 h-32 justify-end">
+			<!-- Income bar -->
+			<div
+				class="w-full bg-green-500 rounded-t transition-all"
+				style={ fmt.Sprintf("height: %s", calcBarHeight(getMonthTotal(month, "income", monthlyTotals), maxTotal)) }
+				title={ fmt.Sprintf("Income: %s", formatMoney(getMonthTotal(month, "income", monthlyTotals))) }
+			></div>
+			<!-- Expense bar -->
+			<div
+				class="w-full bg-red-400 rounded-b transition-all"
+				style={ fmt.Sprintf("height: %s", calcBarHeight(getMonthTotal(month, "expense", monthlyTotals), maxTotal)) }
+				title={ fmt.Sprintf("Expenses: %s", formatMoney(getMonthTotal(month, "expense", monthlyTotals))) }
+			></div>
+		</div>
+		<span class="text-xs text-gray-400">{ getMonthLabel(month) }</span>
+	</div>
+}
+
+// Helper functions
 
 func unwrapString(s sql.NullString) string {
 	if s.Valid {
@@ -124,7 +363,172 @@ func unwrapString(s sql.NullString) string {
 
 func formatMoney(cents int64) string {
 	if cents < 0 {
-		return fmt.Sprintf("-$%.2f", float64(-cents)/100.0)
+		cents = -cents
 	}
 	return fmt.Sprintf("$%.2f", float64(cents)/100.0)
+}
+
+func formatMoneyWithSign(cents int64) string {
+	if cents >= 0 {
+		return fmt.Sprintf("+$%.2f", float64(cents)/100.0)
+	}
+	return fmt.Sprintf("-$%.2f", float64(-cents)/100.0)
+}
+
+func getAmountColorClass(categoryType string) string {
+	if categoryType == "income" {
+		return "text-green-600"
+	}
+	return "text-red-600"
+}
+
+func getCategoryBgClass(categoryType string) string {
+	if categoryType == "income" {
+		return "bg-green-50"
+	}
+	return "bg-orange-50"
+}
+
+func getCategoryTextClass(categoryType string) string {
+	if categoryType == "income" {
+		return "text-green-700"
+	}
+	return "text-orange-700"
+}
+
+func getCategoryAmountClass(categoryType string) string {
+	if categoryType == "income" {
+		return "text-green-600"
+	}
+	return "text-red-600"
+}
+
+func getBalanceBgClass(income, expense int64) string {
+	if income >= expense {
+		return "bg-blue-50 border-blue-100"
+	}
+	return "bg-orange-50 border-orange-100"
+}
+
+func getBalanceTextClass(income, expense int64) string {
+	if income >= expense {
+		return "text-blue-700"
+	}
+	return "text-orange-700"
+}
+
+func calcTotalByType(categories []db.GetCategoryTotalsByYearRow, categoryType string) int64 {
+	var total int64
+	for _, c := range categories {
+		if c.CategoryType == categoryType {
+			total += c.TotalAmount
+		}
+	}
+	return total
+}
+
+func calcTotal(categories []db.GetCategoryTotalsByYearRow) int64 {
+	var total int64
+	for _, c := range categories {
+		total += c.TotalAmount
+	}
+	return total
+}
+
+func filterByType(categories []db.GetCategoryTotalsByYearRow, categoryType string) []db.GetCategoryTotalsByYearRow {
+	var filtered []db.GetCategoryTotalsByYearRow
+	for _, c := range categories {
+		if c.CategoryType == categoryType {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+func getCategoryColor(cat db.GetCategoryTotalsByYearRow) string {
+	if cat.CategoryColor.Valid && cat.CategoryColor.String != "" {
+		return cat.CategoryColor.String
+	}
+	// Default colors based on category name hash
+	colors := []string{"#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"}
+	return colors[int(cat.CategoryID)%len(colors)]
+}
+
+func generatePieChartStyle(expenses []db.GetCategoryTotalsByYearRow) string {
+	total := calcTotal(expenses)
+	if total == 0 {
+		return "background: #e5e7eb"
+	}
+
+	var gradientParts []string
+	var currentPercent float64 = 0
+
+	for _, cat := range expenses {
+		if cat.TotalAmount > 0 {
+			percent := float64(cat.TotalAmount) / float64(total) * 100
+			color := getCategoryColor(cat)
+			gradientParts = append(gradientParts, fmt.Sprintf("%s %.1f%% %.1f%%", color, currentPercent, currentPercent+percent))
+			currentPercent += percent
+		}
+	}
+
+	if len(gradientParts) == 0 {
+		return "background: #e5e7eb"
+	}
+
+	return fmt.Sprintf("background: conic-gradient(%s)", joinStrings(gradientParts, ", "))
+}
+
+func joinStrings(strs []string, sep string) string {
+	result := ""
+	for i, s := range strs {
+		if i > 0 {
+			result += sep
+		}
+		result += s
+	}
+	return result
+}
+
+func getMaxMonthlyTotal(monthlyTotals []db.GetMonthlyTotalsByYearRow) int64 {
+	var max int64
+	for _, m := range monthlyTotals {
+		if m.TotalAmount > max {
+			max = m.TotalAmount
+		}
+	}
+	return max
+}
+
+func getMonthTotal(month int, categoryType string, monthlyTotals []db.GetMonthlyTotalsByYearRow) int64 {
+	for _, m := range monthlyTotals {
+		if int(m.Month) == month && m.CategoryType == categoryType {
+			return m.TotalAmount
+		}
+	}
+	return 0
+}
+
+func calcBarHeight(amount, max int64) string {
+	if max == 0 || amount == 0 {
+		return "0px"
+	}
+	// Max height is 128px (h-32)
+	height := float64(amount) / float64(max) * 64
+	if height < 4 {
+		height = 4 // Minimum visible height
+	}
+	return fmt.Sprintf("%.0fpx", height)
+}
+
+func getMonthLabel(month int) string {
+	labels := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+	if month >= 1 && month <= 12 {
+		return labels[month-1]
+	}
+	return ""
+}
+
+func formatDate(t time.Time) string {
+	return t.Format("Jan 2")
 }
