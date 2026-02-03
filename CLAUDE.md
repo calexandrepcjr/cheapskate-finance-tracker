@@ -49,11 +49,12 @@ cheapskate-finance-tracker/
 │   ├── parser.go            # Transaction input parsing
 │   └── parser_test.go       # Parser unit tests
 ├── scripts/
-│   ├── setup-hooks.sh       # Installs git hooks
-│   ├── validate-commit-msg.sh # Validates conventional commit format
-│   └── hooks/
-│       ├── pre-commit       # Pre-commit hook (runs tests)
-│       └── commit-msg       # Commit-msg hook (conventional commits)
+│   └── hooks-cli/           # Go-based hooks CLI tool
+│       ├── main.go          # CLI entry point
+│       ├── validate.go      # Commit message validation
+│       ├── validate_test.go # Validation tests
+│       ├── setup.go         # Hook installation logic
+│       └── setup_test.go    # Setup tests
 ├── .air.toml                # Hot-reload configuration
 ├── sqlc.yaml                # SQLC code generator config
 ├── Makefile                 # Build automation
@@ -259,21 +260,45 @@ go test ./... -v
 | `server/main_test.go` | Integration tests for `ensureSchema`, `ensureSeed` |
 | `server/db/queries_test.go` | Database layer tests for all SQLC queries |
 
-### Git Pre-commit Hook
+### Git Hooks
 
-A git pre-commit hook runs `go test ./...` before every commit. Install it with:
+Git hooks enforce code quality before commits. Install them with:
 
 ```bash
-./scripts/setup-hooks.sh
+# Using make (recommended)
+make setup-hooks
+
+# Or directly via Go
+go run ./scripts/hooks-cli setup-hooks
 ```
 
-This ensures all tests pass before any code can be committed, regardless of whether commits are made via CLI, IDE, or AI assistant.
+Installed hooks:
+- **pre-commit**: Runs `go test ./...` before each commit
+- **commit-msg**: Validates conventional commits format
 
 ### Claude Code Pre-commit Hook
 
 A Claude Code hook is also configured in `.claude/settings.json` to run tests and install git hooks before commits made through Claude Code. This provides an additional layer of enforcement for AI-assisted development.
 
 **Important:** If tests fail during a commit attempt, fix the failing tests before retrying the commit.
+
+### Hooks CLI Tool
+
+The project includes a Go-based CLI tool for git hooks management:
+
+```bash
+# Build the CLI tool
+make hooks-cli
+
+# Or run directly with go run
+go run ./scripts/hooks-cli <command>
+```
+
+Available commands:
+- `validate-commit <message>` - Validate a commit message
+- `validate-commit-file <file>` - Validate commit message from file
+- `setup-hooks` - Install git hooks
+- `run-tests` - Run the test suite
 
 ## Conventional Commits (REQUIRED)
 
@@ -359,17 +384,17 @@ EOF
 )"
 ```
 
-### Validation Scripts
+### Validation
 
-The project includes validation scripts:
-
-- `scripts/hooks/commit-msg` - Git hook that validates commit messages
-- `scripts/validate-commit-msg.sh` - Standalone validation script
-
-To manually validate a commit message:
+Use the hooks-cli tool to validate commit messages:
 
 ```bash
-./scripts/validate-commit-msg.sh "feat: my commit message"
+# Using go run
+go run ./scripts/hooks-cli validate-commit "feat: my commit message"
+
+# Or build and use the binary
+make hooks-cli
+./bin/hooks-cli validate-commit "feat: my commit message"
 ```
 
 ### Writing New Tests
@@ -414,5 +439,5 @@ After modifying `schema.sql`:
 | Add handler tests | `server/handlers_frontend_test.go` |
 | Add DB tests | `server/db/queries_test.go` |
 | Configure Claude hooks | `.claude/settings.json` |
-| Add/modify git hooks | `scripts/hooks/` |
-| Validate commit message | `scripts/validate-commit-msg.sh` |
+| Modify hooks CLI | `scripts/hooks-cli/` |
+| Add hooks CLI tests | `scripts/hooks-cli/*_test.go` |
