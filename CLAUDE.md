@@ -50,8 +50,10 @@ cheapskate-finance-tracker/
 │   └── parser_test.go       # Parser unit tests
 ├── scripts/
 │   ├── setup-hooks.sh       # Installs git hooks
+│   ├── validate-commit-msg.sh # Validates conventional commit format
 │   └── hooks/
-│       └── pre-commit       # Pre-commit hook (runs tests)
+│       ├── pre-commit       # Pre-commit hook (runs tests)
+│       └── commit-msg       # Commit-msg hook (conventional commits)
 ├── .air.toml                # Hot-reload configuration
 ├── sqlc.yaml                # SQLC code generator config
 ├── Makefile                 # Build automation
@@ -269,9 +271,106 @@ This ensures all tests pass before any code can be committed, regardless of whet
 
 ### Claude Code Pre-commit Hook
 
-A Claude Code hook is also configured in `.claude/settings.json` to run tests before commits made through Claude Code. This provides an additional layer of enforcement for AI-assisted development.
+A Claude Code hook is also configured in `.claude/settings.json` to run tests and install git hooks before commits made through Claude Code. This provides an additional layer of enforcement for AI-assisted development.
 
 **Important:** If tests fail during a commit attempt, fix the failing tests before retrying the commit.
+
+## Conventional Commits (REQUIRED)
+
+**All commits to this repository MUST follow the Conventional Commits specification.**
+
+This project enforces conventional commits through a `commit-msg` git hook. Invalid commit messages will be rejected.
+
+### Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Allowed Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `feat` | A new feature | `feat: add transaction export to CSV` |
+| `fix` | A bug fix | `fix: correct amount parsing for decimals` |
+| `docs` | Documentation only | `docs: update API documentation` |
+| `style` | Formatting, no code change | `style: fix indentation in handlers` |
+| `refactor` | Code change (no feature/fix) | `refactor: extract validation logic` |
+| `perf` | Performance improvement | `perf: optimize database queries` |
+| `test` | Adding or correcting tests | `test: add parser edge case tests` |
+| `build` | Build system or dependencies | `build: upgrade Go to 1.25` |
+| `ci` | CI configuration changes | `ci: add GitHub Actions workflow` |
+| `chore` | Other maintenance tasks | `chore: update .gitignore` |
+| `revert` | Reverts a previous commit | `revert: revert "feat: add export"` |
+
+### Optional Scope
+
+Add a scope in parentheses to specify the affected component:
+
+```
+feat(parser): add support for currency symbols
+fix(db): handle null values in transactions
+test(handlers): add dashboard endpoint coverage
+```
+
+### Examples
+
+```bash
+# Good commit messages
+feat: add user authentication system
+fix(parser): handle negative transaction amounts
+docs: add API endpoint documentation
+test(db): add queries integration tests
+refactor(handlers): extract common validation logic
+build: add Docker support
+
+# Bad commit messages (will be REJECTED)
+added new feature          # Missing type
+fix - corrected bug        # Wrong separator (use colon)
+FEAT: uppercase type       # Types must be lowercase
+feat:no space after colon  # Missing space after colon
+update code                # Missing type
+```
+
+### Making Commits
+
+When committing changes, always use this format:
+
+```bash
+git commit -m "type(scope): description"
+```
+
+Or for multi-line messages:
+
+```bash
+git commit -m "$(cat <<'EOF'
+feat(parser): add currency symbol support
+
+- Support for $, EUR, GBP symbols
+- Auto-detect currency from symbol
+- Default to USD when no symbol present
+
+Closes #123
+EOF
+)"
+```
+
+### Validation Scripts
+
+The project includes validation scripts:
+
+- `scripts/hooks/commit-msg` - Git hook that validates commit messages
+- `scripts/validate-commit-msg.sh` - Standalone validation script
+
+To manually validate a commit message:
+
+```bash
+./scripts/validate-commit-msg.sh "feat: my commit message"
+```
 
 ### Writing New Tests
 
@@ -316,3 +415,4 @@ After modifying `schema.sql`:
 | Add DB tests | `server/db/queries_test.go` |
 | Configure Claude hooks | `.claude/settings.json` |
 | Add/modify git hooks | `scripts/hooks/` |
+| Validate commit message | `scripts/validate-commit-msg.sh` |
