@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -265,4 +266,55 @@ func formatMoney(cents int64) string {
 
 func formatFloat(f float64, prec int) string {
 	return strconv.FormatFloat(f, 'f', prec, 64)
+}
+
+func (app *Application) HandleSettings(w http.ResponseWriter, r *http.Request) {
+	templates.Settings().Render(r.Context(), w)
+}
+
+func (app *Application) HandleExportCSV(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	txs, err := app.Q.ListAllTransactionsForExport(ctx)
+	if err != nil {
+		http.Error(w, "Failed to load transactions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=cheapskate-export.csv")
+
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Header row
+	writer.Write([]string{"ID", "Date", "Description", "Category", "Type", "Amount", "Currency"})
+
+	for _, t := range txs {
+		amount := float64(t.Amount) / 100.0
+		if amount < 0 {
+			amount = -amount
+		}
+		writer.Write([]string{
+			strconv.FormatInt(t.ID, 10),
+			t.Date.Format("2006-01-02"),
+			t.Description,
+			t.CategoryName,
+			t.CategoryType,
+			strconv.FormatFloat(amount, 'f', 2, 64),
+			t.Currency,
+		})
+	}
+}
+
+func (app *Application) HandleWipeData(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	err := app.Q.DeleteAllTransactions(ctx)
+	if err != nil {
+		templates.WipeError(err.Error()).Render(ctx, w)
+		return
+	}
+
+	templates.WipeSuccess().Render(ctx, w)
 }

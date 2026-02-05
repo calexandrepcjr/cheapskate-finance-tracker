@@ -88,3 +88,12 @@ WHERE id = ? AND user_id = ?;
 
 -- name: CountAllTransactions :one
 SELECT COUNT(*) as count FROM transactions;
+
+-- name: ListAllTransactionsForExport :many
+SELECT t.id, t.amount, t.currency, t.description, t.date, c.name as category_name, c.type as category_type
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+ORDER BY t.date DESC;
+
+-- name: DeleteAllTransactions :exec
+DELETE FROM transactions;

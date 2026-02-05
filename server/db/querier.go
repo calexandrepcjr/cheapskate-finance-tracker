@@ -11,11 +11,14 @@ import (
 type Querier interface {
 	CountAllTransactions(ctx context.Context) (int64, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
+	DeleteAllTransactions(ctx context.Context) error
+	DeleteTransaction(ctx context.Context, arg DeleteTransactionParams) error
 	GetCategoryByName(ctx context.Context, name string) (Category, error)
 	GetCategoryTotalsByYear(ctx context.Context, dollar_1 string) ([]GetCategoryTotalsByYearRow, error)
 	GetDistinctTransactionYears(ctx context.Context) ([]int64, error)
 	GetMonthlyTotalsByYear(ctx context.Context, dollar_1 string) ([]GetMonthlyTotalsByYearRow, error)
 	GetUser(ctx context.Context, id int64) (User, error)
+	ListAllTransactionsForExport(ctx context.Context) ([]ListAllTransactionsForExportRow, error)
 	ListCategories(ctx context.Context) ([]Category, error)
 	ListRecentTransactions(ctx context.Context) ([]ListRecentTransactionsRow, error)
 	ListTransactionsByYear(ctx context.Context, dollar_1 string) ([]ListTransactionsByYearRow, error)
