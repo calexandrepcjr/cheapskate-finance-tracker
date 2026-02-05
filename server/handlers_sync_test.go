@@ -13,21 +13,21 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestHandleSyncStatus(t *testing.T) {
+func TestHandleStorageStatus(t *testing.T) {
 	t.Run("returns zero count for empty database", func(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/storage/status", nil)
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncStatus(rec, req)
+		app.HandleStorageStatus(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("HandleSyncStatus() status = %d, want %d", rec.Code, http.StatusOK)
+			t.Errorf("HandleStorageStatus() status = %d, want %d", rec.Code, http.StatusOK)
 		}
 
-		var resp SyncStatusResponse
+		var resp StorageStatusResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -58,12 +58,12 @@ func TestHandleSyncStatus(t *testing.T) {
 			t.Fatalf("Failed to create transaction: %v", err)
 		}
 
-		req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/storage/status", nil)
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncStatus(rec, req)
+		app.HandleStorageStatus(rec, req)
 
-		var resp SyncStatusResponse
+		var resp StorageStatusResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -74,21 +74,21 @@ func TestHandleSyncStatus(t *testing.T) {
 	})
 }
 
-func TestHandleSyncExport(t *testing.T) {
+func TestHandleStorageExport(t *testing.T) {
 	t.Run("exports empty data for year with no transactions", func(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/sync/export?year=2026", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/storage/export?year=2026", nil)
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncExport(rec, req)
+		app.HandleStorageExport(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("HandleSyncExport() status = %d, want %d", rec.Code, http.StatusOK)
+			t.Errorf("HandleStorageExport() status = %d, want %d", rec.Code, http.StatusOK)
 		}
 
-		var resp SyncExportResponse
+		var resp StorageExportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -144,12 +144,12 @@ func TestHandleSyncExport(t *testing.T) {
 		}
 
 		// Export 2026
-		req := httptest.NewRequest(http.MethodGet, "/api/sync/export?year=2026", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/storage/export?year=2026", nil)
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncExport(rec, req)
+		app.HandleStorageExport(rec, req)
 
-		var resp SyncExportResponse
+		var resp StorageExportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -175,12 +175,12 @@ func TestHandleSyncExport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/sync/export", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/storage/export", nil)
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncExport(rec, req)
+		app.HandleStorageExport(rec, req)
 
-		var resp SyncExportResponse
+		var resp StorageExportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -195,18 +195,18 @@ func TestHandleSyncExport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/sync/export?year=2026", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/storage/export?year=2026", nil)
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncExport(rec, req)
+		app.HandleStorageExport(rec, req)
 
-		var resp SyncExportResponse
+		var resp StorageExportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
 
 		// Find Food category
-		var food *SyncCategory
+		var food *StorageCategory
 		for i := range resp.Categories {
 			if resp.Categories[i].Name == "Food" {
 				food = &resp.Categories[i]
@@ -228,13 +228,13 @@ func TestHandleSyncExport(t *testing.T) {
 	})
 }
 
-func TestHandleSyncImport(t *testing.T) {
+func TestHandleStorageImport(t *testing.T) {
 	t.Run("imports transactions into empty database", func(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		importReq := SyncImportRequest{
-			Transactions: []SyncTransaction{
+		importReq := StorageImportRequest{
+			Transactions: []StorageTransaction{
 				{
 					ID:           100,
 					Amount:       -2500,
@@ -257,17 +257,17 @@ func TestHandleSyncImport(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(importReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("HandleSyncImport() status = %d, want %d", rec.Code, http.StatusOK)
+			t.Errorf("HandleStorageImport() status = %d, want %d", rec.Code, http.StatusOK)
 		}
 
-		var resp SyncImportResponse
+		var resp StorageImportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -309,8 +309,8 @@ func TestHandleSyncImport(t *testing.T) {
 			t.Fatalf("Failed to create existing transaction: %v", err)
 		}
 
-		importReq := SyncImportRequest{
-			Transactions: []SyncTransaction{
+		importReq := StorageImportRequest{
+			Transactions: []StorageTransaction{
 				{
 					ID:           200,
 					Amount:       -5000,
@@ -324,13 +324,13 @@ func TestHandleSyncImport(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(importReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
-		var resp SyncImportResponse
+		var resp StorageImportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -357,14 +357,14 @@ func TestHandleSyncImport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader([]byte("invalid json")))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader([]byte("invalid json")))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
 		if rec.Code != http.StatusBadRequest {
-			t.Errorf("HandleSyncImport() status = %d, want %d", rec.Code, http.StatusBadRequest)
+			t.Errorf("HandleStorageImport() status = %d, want %d", rec.Code, http.StatusBadRequest)
 		}
 	})
 
@@ -372,22 +372,22 @@ func TestHandleSyncImport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		importReq := SyncImportRequest{
-			Transactions: []SyncTransaction{},
+		importReq := StorageImportRequest{
+			Transactions: []StorageTransaction{},
 		}
 
 		body, _ := json.Marshal(importReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("HandleSyncImport() status = %d, want %d", rec.Code, http.StatusOK)
+			t.Errorf("HandleStorageImport() status = %d, want %d", rec.Code, http.StatusOK)
 		}
 
-		var resp SyncImportResponse
+		var resp StorageImportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -401,8 +401,8 @@ func TestHandleSyncImport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		importReq := SyncImportRequest{
-			Transactions: []SyncTransaction{
+		importReq := StorageImportRequest{
+			Transactions: []StorageTransaction{
 				{
 					ID:           300,
 					Amount:       -3000,
@@ -416,13 +416,13 @@ func TestHandleSyncImport(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(importReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
-		var resp SyncImportResponse
+		var resp StorageImportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -437,8 +437,8 @@ func TestHandleSyncImport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		importReq := SyncImportRequest{
-			Transactions: []SyncTransaction{
+		importReq := StorageImportRequest{
+			Transactions: []StorageTransaction{
 				{
 					ID:           400,
 					Amount:       -1000,
@@ -452,13 +452,13 @@ func TestHandleSyncImport(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(importReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
-		var resp SyncImportResponse
+		var resp StorageImportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -476,8 +476,8 @@ func TestHandleSyncImport(t *testing.T) {
 		app := setupTestApp(t)
 		defer cleanupTestApp(t, app)
 
-		importReq := SyncImportRequest{
-			Transactions: []SyncTransaction{
+		importReq := StorageImportRequest{
+			Transactions: []StorageTransaction{
 				{
 					ID:           500,
 					Amount:       -5000,
@@ -500,13 +500,13 @@ func TestHandleSyncImport(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(importReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
-		app.HandleSyncImport(rec, req)
+		app.HandleStorageImport(rec, req)
 
-		var resp SyncImportResponse
+		var resp StorageImportResponse
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
@@ -538,7 +538,7 @@ func TestHandleSyncImport(t *testing.T) {
 	})
 }
 
-func TestSyncRoundTrip(t *testing.T) {
+func TestStorageRoundTrip(t *testing.T) {
 	t.Run("export then import preserves data", func(t *testing.T) {
 		// Create app with data
 		app1 := setupTestApp(t)
@@ -570,11 +570,11 @@ func TestSyncRoundTrip(t *testing.T) {
 		}
 
 		// Export from app1
-		exportReq := httptest.NewRequest(http.MethodGet, "/api/sync/export?year=2026", nil)
+		exportReq := httptest.NewRequest(http.MethodGet, "/api/storage/export?year=2026", nil)
 		exportRec := httptest.NewRecorder()
-		app1.HandleSyncExport(exportRec, exportReq)
+		app1.HandleStorageExport(exportRec, exportReq)
 
-		var exportResp SyncExportResponse
+		var exportResp StorageExportResponse
 		if err := json.NewDecoder(exportRec.Body).Decode(&exportResp); err != nil {
 			t.Fatalf("Failed to decode export response: %v", err)
 		}
@@ -587,18 +587,18 @@ func TestSyncRoundTrip(t *testing.T) {
 		app2 := setupTestApp(t)
 		defer cleanupTestApp(t, app2)
 
-		importReq := SyncImportRequest{
+		importReq := StorageImportRequest{
 			Transactions: exportResp.Transactions,
 		}
 		importBody, _ := json.Marshal(importReq)
 
-		importHTTPReq := httptest.NewRequest(http.MethodPost, "/api/sync/import", bytes.NewReader(importBody))
+		importHTTPReq := httptest.NewRequest(http.MethodPost, "/api/storage/import", bytes.NewReader(importBody))
 		importHTTPReq.Header.Set("Content-Type", "application/json")
 		importRec := httptest.NewRecorder()
 
-		app2.HandleSyncImport(importRec, importHTTPReq)
+		app2.HandleStorageImport(importRec, importHTTPReq)
 
-		var importResp SyncImportResponse
+		var importResp StorageImportResponse
 		if err := json.NewDecoder(importRec.Body).Decode(&importResp); err != nil {
 			t.Fatalf("Failed to decode import response: %v", err)
 		}

@@ -126,9 +126,9 @@
   // Fetch current year data from server and store in IndexedDB
   function syncFromServer() {
     var year = new Date().getFullYear();
-    return fetch("/api/sync/export?year=" + year)
+    return fetch("/api/storage/export?year=" + year)
       .then(function (res) {
-        if (!res.ok) throw new Error("Sync export failed: " + res.status);
+        if (!res.ok) throw new Error("Storage export failed: " + res.status);
         return res.json();
       })
       .then(function (data) {
@@ -163,9 +163,9 @@
 
   // Check server status and potentially restore from IndexedDB
   function checkAndRestore() {
-    return fetch("/api/sync/status")
+    return fetch("/api/storage/status")
       .then(function (res) {
-        if (!res.ok) throw new Error("Sync status failed: " + res.status);
+        if (!res.ok) throw new Error("Storage status failed: " + res.status);
         return res.json();
       })
       .then(function (status) {
@@ -229,12 +229,12 @@
         idb.close();
         if (!transactions || transactions.length === 0) return;
 
-        return fetch("/api/sync/import", {
+        return fetch("/api/storage/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transactions: transactions }),
         }).then(function (res) {
-          if (!res.ok) throw new Error("Sync import failed: " + res.status);
+          if (!res.ok) throw new Error("Storage import failed: " + res.status);
           return res.json();
         });
       });

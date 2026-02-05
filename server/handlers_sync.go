@@ -10,8 +10,8 @@ import (
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 )
 
-// SyncTransaction represents a transaction in the sync JSON format
-type SyncTransaction struct {
+// StorageTransaction represents a transaction in the storage JSON format
+type StorageTransaction struct {
 	ID           int64  `json:"id"`
 	Amount       int64  `json:"amount"`
 	Currency     string `json:"currency"`
@@ -22,8 +22,8 @@ type SyncTransaction struct {
 	CreatedAt    string `json:"created_at"`
 }
 
-// SyncCategory represents a category in the sync JSON format
-type SyncCategory struct {
+// StorageCategory represents a category in the storage JSON format
+type StorageCategory struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Type  string `json:"type"`
@@ -31,35 +31,35 @@ type SyncCategory struct {
 	Color string `json:"color"`
 }
 
-// SyncStatusResponse is the response for the sync status endpoint
-type SyncStatusResponse struct {
+// StorageStatusResponse is the response for the storage status endpoint
+type StorageStatusResponse struct {
 	TransactionCount int64  `json:"transaction_count"`
 	ServerTime       string `json:"server_time"`
 }
 
-// SyncExportResponse is the response for the sync export endpoint
-type SyncExportResponse struct {
-	Transactions []SyncTransaction `json:"transactions"`
-	Categories   []SyncCategory    `json:"categories"`
-	Year         string            `json:"year"`
-	ExportedAt   string            `json:"exported_at"`
+// StorageExportResponse is the response for the storage export endpoint
+type StorageExportResponse struct {
+	Transactions []StorageTransaction `json:"transactions"`
+	Categories   []StorageCategory    `json:"categories"`
+	Year         string               `json:"year"`
+	ExportedAt   string               `json:"exported_at"`
 }
 
-// SyncImportRequest is the request body for the sync import endpoint
-type SyncImportRequest struct {
-	Transactions []SyncTransaction `json:"transactions"`
+// StorageImportRequest is the request body for the storage import endpoint
+type StorageImportRequest struct {
+	Transactions []StorageTransaction `json:"transactions"`
 }
 
-// SyncImportResponse is the response for the sync import endpoint
-type SyncImportResponse struct {
+// StorageImportResponse is the response for the storage import endpoint
+type StorageImportResponse struct {
 	Imported int `json:"imported"`
 	Skipped  int `json:"skipped"`
 	Errors   int `json:"errors"`
 }
 
-// HandleSyncStatus returns the current transaction count so the client
+// HandleStorageStatus returns the current transaction count so the client
 // can determine whether the database needs reconstruction from IndexedDB.
-func (app *Application) HandleSyncStatus(w http.ResponseWriter, r *http.Request) {
+func (app *Application) HandleStorageStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	count, err := app.Q.CountAllTransactions(ctx)
@@ -68,7 +68,7 @@ func (app *Application) HandleSyncStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp := SyncStatusResponse{
+	resp := StorageStatusResponse{
 		TransactionCount: count,
 		ServerTime:       time.Now().UTC().Format(time.RFC3339),
 	}
@@ -77,9 +77,9 @@ func (app *Application) HandleSyncStatus(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(resp)
 }
 
-// HandleSyncExport returns all transactions and categories for a given year
+// HandleStorageExport returns all transactions and categories for a given year
 // as JSON, for the client to store in IndexedDB.
-func (app *Application) HandleSyncExport(w http.ResponseWriter, r *http.Request) {
+func (app *Application) HandleStorageExport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	yearParam := r.URL.Query().Get("year")
@@ -94,13 +94,13 @@ func (app *Application) HandleSyncExport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	transactions := make([]SyncTransaction, 0, len(txRows))
+	transactions := make([]StorageTransaction, 0, len(txRows))
 	for _, tx := range txRows {
 		createdAt := ""
 		if tx.CreatedAt.Valid {
 			createdAt = tx.CreatedAt.Time.UTC().Format(time.RFC3339)
 		}
-		transactions = append(transactions, SyncTransaction{
+		transactions = append(transactions, StorageTransaction{
 			ID:           tx.ID,
 			Amount:       tx.Amount,
 			Currency:     tx.Currency,
@@ -119,7 +119,7 @@ func (app *Application) HandleSyncExport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	categories := make([]SyncCategory, 0, len(catRows))
+	categories := make([]StorageCategory, 0, len(catRows))
 	for _, cat := range catRows {
 		icon := ""
 		if cat.Icon.Valid {
@@ -129,7 +129,7 @@ func (app *Application) HandleSyncExport(w http.ResponseWriter, r *http.Request)
 		if cat.Color.Valid {
 			color = cat.Color.String
 		}
-		categories = append(categories, SyncCategory{
+		categories = append(categories, StorageCategory{
 			ID:    cat.ID,
 			Name:  cat.Name,
 			Type:  cat.Type,
@@ -138,7 +138,7 @@ func (app *Application) HandleSyncExport(w http.ResponseWriter, r *http.Request)
 		})
 	}
 
-	resp := SyncExportResponse{
+	resp := StorageExportResponse{
 		Transactions: transactions,
 		Categories:   categories,
 		Year:         yearParam,
@@ -149,12 +149,12 @@ func (app *Application) HandleSyncExport(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(resp)
 }
 
-// HandleSyncImport accepts transactions from IndexedDB and imports them
+// HandleStorageImport accepts transactions from IndexedDB and imports them
 // into the SQLite database. Used to reconstruct data after DB deletion.
-func (app *Application) HandleSyncImport(w http.ResponseWriter, r *http.Request) {
+func (app *Application) HandleStorageImport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req SyncImportRequest
+	var req StorageImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -167,7 +167,7 @@ func (app *Application) HandleSyncImport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if count > 0 {
-		resp := SyncImportResponse{Imported: 0, Skipped: len(req.Transactions), Errors: 0}
+		resp := StorageImportResponse{Imported: 0, Skipped: len(req.Transactions), Errors: 0}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 		return
@@ -178,14 +178,14 @@ func (app *Application) HandleSyncImport(w http.ResponseWriter, r *http.Request)
 	skipped := 0
 	errors := 0
 
-	for _, syncTx := range req.Transactions {
+	for _, storageTx := range req.Transactions {
 		// Resolve category by name
-		cat, err := app.Q.GetCategoryByName(ctx, syncTx.CategoryName)
+		cat, err := app.Q.GetCategoryByName(ctx, storageTx.CategoryName)
 		if err != nil {
 			// Try to find a fallback category
 			cats, catErr := app.Q.ListCategories(ctx)
 			if catErr != nil || len(cats) == 0 {
-				log.Printf("Sync import: could not resolve category %q: %v", syncTx.CategoryName, err)
+				log.Printf("Storage import: could not resolve category %q: %v", storageTx.CategoryName, err)
 				errors++
 				continue
 			}
@@ -193,9 +193,9 @@ func (app *Application) HandleSyncImport(w http.ResponseWriter, r *http.Request)
 		}
 
 		// Parse date
-		txDate, err := time.Parse(time.RFC3339, syncTx.Date)
+		txDate, err := time.Parse(time.RFC3339, storageTx.Date)
 		if err != nil {
-			log.Printf("Sync import: could not parse date %q: %v", syncTx.Date, err)
+			log.Printf("Storage import: could not parse date %q: %v", storageTx.Date, err)
 			errors++
 			continue
 		}
@@ -203,13 +203,13 @@ func (app *Application) HandleSyncImport(w http.ResponseWriter, r *http.Request)
 		_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
 			UserID:      userID,
 			CategoryID:  cat.ID,
-			Amount:      syncTx.Amount,
-			Currency:    syncTx.Currency,
-			Description: syncTx.Description,
+			Amount:      storageTx.Amount,
+			Currency:    storageTx.Currency,
+			Description: storageTx.Description,
 			Date:        txDate,
 		})
 		if err != nil {
-			log.Printf("Sync import: failed to create transaction: %v", err)
+			log.Printf("Storage import: failed to create transaction: %v", err)
 			errors++
 			continue
 		}
@@ -219,7 +219,7 @@ func (app *Application) HandleSyncImport(w http.ResponseWriter, r *http.Request)
 
 	skipped = len(req.Transactions) - imported - errors
 
-	resp := SyncImportResponse{
+	resp := StorageImportResponse{
 		Imported: imported,
 		Skipped:  skipped,
 		Errors:   errors,
