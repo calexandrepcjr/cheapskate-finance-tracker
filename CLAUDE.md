@@ -49,9 +49,12 @@ cheapskate-finance-tracker/
 │   ├── parser.go            # Transaction input parsing
 │   └── parser_test.go       # Parser unit tests
 ├── scripts/
-│   ├── setup-hooks.sh       # Installs git hooks
-│   └── hooks/
-│       └── pre-commit       # Pre-commit hook (runs tests)
+│   └── hooks-cli/           # Go-based hooks CLI tool
+│       ├── main.go          # CLI entry point
+│       ├── validate.go      # Commit message validation
+│       ├── validate_test.go # Validation tests
+│       ├── setup.go         # Hook installation logic
+│       └── setup_test.go    # Setup tests
 ├── .air.toml                # Hot-reload configuration
 ├── sqlc.yaml                # SQLC code generator config
 ├── Makefile                 # Build automation
@@ -257,21 +260,142 @@ go test ./... -v
 | `server/main_test.go` | Integration tests for `ensureSchema`, `ensureSeed` |
 | `server/db/queries_test.go` | Database layer tests for all SQLC queries |
 
-### Git Pre-commit Hook
+### Git Hooks
 
-A git pre-commit hook runs `go test ./...` before every commit. Install it with:
+Git hooks enforce code quality before commits. Install them with:
 
 ```bash
-./scripts/setup-hooks.sh
+# Using make (recommended)
+make setup-hooks
+
+# Or directly via Go
+go run ./scripts/hooks-cli setup-hooks
 ```
 
-This ensures all tests pass before any code can be committed, regardless of whether commits are made via CLI, IDE, or AI assistant.
+Installed hooks:
+- **pre-commit**: Runs `go test ./...` before each commit
+- **commit-msg**: Validates conventional commits format
 
 ### Claude Code Pre-commit Hook
 
-A Claude Code hook is also configured in `.claude/settings.json` to run tests before commits made through Claude Code. This provides an additional layer of enforcement for AI-assisted development.
+A Claude Code hook is also configured in `.claude/settings.json` to run tests and install git hooks before commits made through Claude Code. This provides an additional layer of enforcement for AI-assisted development.
 
 **Important:** If tests fail during a commit attempt, fix the failing tests before retrying the commit.
+
+### Hooks CLI Tool
+
+The project includes a Go-based CLI tool for git hooks management:
+
+```bash
+# Build the CLI tool
+make hooks-cli
+
+# Or run directly with go run
+go run ./scripts/hooks-cli <command>
+```
+
+Available commands:
+- `validate-commit <message>` - Validate a commit message
+- `validate-commit-file <file>` - Validate commit message from file
+- `setup-hooks` - Install git hooks
+- `run-tests` - Run the test suite
+
+## Conventional Commits (REQUIRED)
+
+**All commits to this repository MUST follow the Conventional Commits specification.**
+
+This project enforces conventional commits through a `commit-msg` git hook. Invalid commit messages will be rejected.
+
+### Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Allowed Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `feat` | A new feature | `feat: add transaction export to CSV` |
+| `fix` | A bug fix | `fix: correct amount parsing for decimals` |
+| `docs` | Documentation only | `docs: update API documentation` |
+| `style` | Formatting, no code change | `style: fix indentation in handlers` |
+| `refactor` | Code change (no feature/fix) | `refactor: extract validation logic` |
+| `perf` | Performance improvement | `perf: optimize database queries` |
+| `test` | Adding or correcting tests | `test: add parser edge case tests` |
+| `build` | Build system or dependencies | `build: upgrade Go to 1.25` |
+| `ci` | CI configuration changes | `ci: add GitHub Actions workflow` |
+| `chore` | Other maintenance tasks | `chore: update .gitignore` |
+| `revert` | Reverts a previous commit | `revert: revert "feat: add export"` |
+
+### Optional Scope
+
+Add a scope in parentheses to specify the affected component:
+
+```
+feat(parser): add support for currency symbols
+fix(db): handle null values in transactions
+test(handlers): add dashboard endpoint coverage
+```
+
+### Examples
+
+```bash
+# Good commit messages
+feat: add user authentication system
+fix(parser): handle negative transaction amounts
+docs: add API endpoint documentation
+test(db): add queries integration tests
+refactor(handlers): extract common validation logic
+build: add Docker support
+
+# Bad commit messages (will be REJECTED)
+added new feature          # Missing type
+fix - corrected bug        # Wrong separator (use colon)
+FEAT: uppercase type       # Types must be lowercase
+feat:no space after colon  # Missing space after colon
+update code                # Missing type
+```
+
+### Making Commits
+
+When committing changes, always use this format:
+
+```bash
+git commit -m "type(scope): description"
+```
+
+Or for multi-line messages:
+
+```bash
+git commit -m "$(cat <<'EOF'
+feat(parser): add currency symbol support
+
+- Support for $, EUR, GBP symbols
+- Auto-detect currency from symbol
+- Default to USD when no symbol present
+
+Closes #123
+EOF
+)"
+```
+
+### Validation
+
+Use the hooks-cli tool to validate commit messages:
+
+```bash
+# Using go run
+go run ./scripts/hooks-cli validate-commit "feat: my commit message"
+
+# Or build and use the binary
+make hooks-cli
+./bin/hooks-cli validate-commit "feat: my commit message"
+```
 
 ### Writing New Tests
 
@@ -315,4 +439,5 @@ After modifying `schema.sql`:
 | Add handler tests | `server/handlers_frontend_test.go` |
 | Add DB tests | `server/db/queries_test.go` |
 | Configure Claude hooks | `.claude/settings.json` |
-| Add/modify git hooks | `scripts/hooks/` |
+| Modify hooks CLI | `scripts/hooks-cli/` |
+| Add hooks CLI tests | `scripts/hooks-cli/*_test.go` |
