@@ -11,4 +11,9 @@ func (app *Application) setupRoutes(r chi.Router) {
 	r.Get("/api/transactions", app.HandleTransactionsPage)
 	r.Post("/api/transaction", app.HandleTransactionCreate)
 	r.Delete("/api/transaction/{id}", app.HandleTransactionDelete)
+
+	// Sync endpoints for IndexedDB <-> SQLite synchronization
+	r.Get("/api/sync/status", app.HandleSyncStatus)
+	r.Get("/api/sync/export", app.HandleSyncExport)
+	r.Post("/api/sync/import", app.HandleSyncImport)
 }
