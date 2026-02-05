@@ -11,6 +11,17 @@ import (
 	"time"
 )
 
+const countAllTransactions = `-- name: CountAllTransactions :one
+SELECT COUNT(*) as count FROM transactions
+`
+
+func (q *Queries) CountAllTransactions(ctx context.Context) (int64, error) {
+	row := q.queryRow(ctx, q.countAllTransactionsStmt, countAllTransactions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTransaction = `-- name: CreateTransaction :one
 INSERT INTO transactions (
   user_id, category_id, amount, currency, description, date

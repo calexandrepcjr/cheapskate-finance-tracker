@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	CountAllTransactions(ctx context.Context) (int64, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
 	GetCategoryByName(ctx context.Context, name string) (Category, error)
 	GetCategoryTotalsByYear(ctx context.Context, dollar_1 string) ([]GetCategoryTotalsByYearRow, error)

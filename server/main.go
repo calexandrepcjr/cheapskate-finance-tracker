@@ -114,10 +114,16 @@ func (app *Application) ensureSeed() error {
 		log.Printf("Warning: Could not fix category types: %v", err)
 	}
 
-	// Ensure Salary category exists for backwards compatibility
-	_, err = app.DB.Exec(`INSERT OR IGNORE INTO categories (name, type, icon, color) VALUES ('Salary', 'income', '💰', '#2ECC71')`)
+	// Ensure Salary category exists for backwards compatibility (only if not already present)
+	_, err = app.DB.Exec(`INSERT INTO categories (name, type, icon, color) SELECT 'Salary', 'income', '💰', '#2ECC71' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = 'Salary')`)
 	if err != nil {
 		log.Printf("Warning: Could not ensure Salary category: %v", err)
+	}
+
+	// Clean up duplicate Salary categories created by previous bug (keep only the lowest ID)
+	_, err = app.DB.Exec(`DELETE FROM categories WHERE name = 'Salary' AND id != (SELECT MIN(id) FROM categories WHERE name = 'Salary')`)
+	if err != nil {
+		log.Printf("Warning: Could not clean up duplicate Salary categories: %v", err)
 	}
 
 	return nil

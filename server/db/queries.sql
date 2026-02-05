@@ -85,3 +85,6 @@ ORDER BY month;
 -- name: DeleteTransaction :exec
 DELETE FROM transactions
 WHERE id = ? AND user_id = ?;
+
+-- name: CountAllTransactions :one
+SELECT COUNT(*) as count FROM transactions;
