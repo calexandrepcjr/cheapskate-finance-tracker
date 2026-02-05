@@ -87,6 +87,7 @@ The server will automatically rebuild and restart when you change any `.go`, `.t
 │   ├── handlers_*.go # HTTP Handlers
 │   └── main.go       # Entrypoint
 └── Makefile          # Build recipes
+```
 
 ## License
 
