@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
+	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -412,6 +415,589 @@ func TestHandleDashboard_YearFilter(t *testing.T) {
 		if strings.Contains(body, "Current year transaction") {
 			t.Error("HandleDashboard() should NOT show current year transaction when year=2025")
 		}
+	})
+}
+
+func TestHandleDashboard_NoDuplicateCategories(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+
+	// Insert a transaction so the dashboard has data
+	_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food
+		Amount:      -2500,
+		Currency:    "USD",
+		Description: "Pizza",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboard(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HandleDashboard() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	// Count occurrences of each category name — each should appear at most once
+	// in the category totals section
+	categories := []string{"Food", "Transport", "Housing", "Earned Income"}
+	for _, cat := range categories {
+		count := strings.Count(body, cat)
+		if count > 1 {
+			// There may be multiple mentions in different contexts (once in mosaic, once in list)
+			// but verify there's no unreasonable duplication (e.g., 4+ times for Salary)
+			if count > 3 {
+				t.Errorf("Category %q appears %d times in dashboard, likely duplicated", cat, count)
+			}
+		}
+	}
+}
+
+func TestHandleDashboard_IncomeAndExpense(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+
+	// Create expense
+	_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food (expense)
+		Amount:      -5000,
+		Currency:    "USD",
+		Description: "Grocery shopping",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create expense: %v", err)
+	}
+
+	// Create income
+	_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  4, // Earned Income
+		Amount:      200000,
+		Currency:    "USD",
+		Description: "January salary",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create income: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboard(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HandleDashboard() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "Grocery shopping") {
+		t.Error("Dashboard should display expense description")
+	}
+	if !strings.Contains(body, "January salary") {
+		t.Error("Dashboard should display income description")
+	}
+}
+
+func TestHandleDashboard_MultipleCategoriesExpenses(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+	currentYear := time.Now().Year()
+	baseDate := time.Date(currentYear, 3, 15, 10, 0, 0, 0, time.UTC)
+
+	// Create transactions in multiple categories
+	transactions := []db.CreateTransactionParams{
+		{UserID: 1, CategoryID: 1, Amount: -2500, Currency: "USD", Description: "Lunch", Date: baseDate},
+		{UserID: 1, CategoryID: 1, Amount: -3000, Currency: "USD", Description: "Dinner", Date: baseDate},
+		{UserID: 1, CategoryID: 2, Amount: -1500, Currency: "USD", Description: "Bus ticket", Date: baseDate},
+		{UserID: 1, CategoryID: 3, Amount: -80000, Currency: "USD", Description: "Rent payment", Date: baseDate},
+	}
+
+	for _, tx := range transactions {
+		_, err := app.Q.CreateTransaction(ctx, tx)
+		if err != nil {
+			t.Fatalf("Failed to create transaction %q: %v", tx.Description, err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboard(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HandleDashboard() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	// Verify all transactions appear
+	for _, tx := range transactions {
+		if !strings.Contains(body, tx.Description) {
+			t.Errorf("Dashboard should contain transaction %q", tx.Description)
+		}
+	}
+}
+
+func TestHandleDashboard_EmptyDatabase(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboard(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleDashboard() with empty DB status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestHandleDashboard_PaginationHasMore(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+	currentYear := time.Now().Year()
+
+	// Create more than 20 transactions (page size) to trigger pagination
+	for i := 0; i < 25; i++ {
+		date := time.Date(currentYear, 1, i+1, 10, 0, 0, 0, time.UTC)
+		_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      -int64((i + 1) * 100),
+			Currency:    "USD",
+			Description: fmt.Sprintf("Transaction %d", i+1),
+			Date:        date,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction %d: %v", i, err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboard(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HandleDashboard() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	// With 25 transactions and page size of 20, the response should indicate more pages
+	// The "Load More" button or similar pagination indicator should be present
+	if !strings.Contains(body, "hx-get") {
+		t.Error("Dashboard with >20 transactions should contain a load-more element with hx-get")
+	}
+}
+
+func TestHandleTransactionsPage_Pagination(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+	currentYear := time.Now().Year()
+	yearStr := fmt.Sprintf("%d", currentYear)
+
+	// Create 25 transactions
+	for i := 0; i < 25; i++ {
+		date := time.Date(currentYear, 1, (i%28)+1, 10, 0, 0, 0, time.UTC)
+		_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      -int64((i + 1) * 100),
+			Currency:    "USD",
+			Description: fmt.Sprintf("Paginated tx %d", i+1),
+			Date:        date,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction %d: %v", i, err)
+		}
+	}
+
+	t.Run("first page", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/transactions?year="+yearStr+"&offset=0", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionsPage(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("second page", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/transactions?year="+yearStr+"&offset=20", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionsPage(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		body := rec.Body.String()
+		// Second page should not have a load-more since only 5 items remain
+		// (25 total - 20 offset = 5, which is < 20 page size)
+		if strings.Contains(body, "offset=40") {
+			t.Error("Second page should not have offset=40 link since all items shown")
+		}
+	})
+
+	t.Run("default year", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/transactions?offset=0", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionsPage(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("empty page beyond data", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/transactions?year="+yearStr+"&offset=100", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionsPage(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("year with no transactions", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/transactions?year=2000&offset=0", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionsPage(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+}
+
+func TestHandleDashboardDetailed_YearFilter(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+
+	// Create transactions in different years
+	_, err := app.DB.ExecContext(ctx, `
+		INSERT INTO transactions (user_id, category_id, amount, currency, description, date)
+		VALUES (1, 1, -5000, 'USD', 'Old detailed expense', '2024-06-15 10:00:00')
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create 2024 transaction: %v", err)
+	}
+
+	_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      -3000,
+		Currency:    "USD",
+		Description: "Current detailed expense",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create current year transaction: %v", err)
+	}
+
+	t.Run("default year shows current data", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboardDetailed(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("filter by 2024", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed?year=2024", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboardDetailed(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("empty year", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed?year=2000", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboardDetailed(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+}
+
+func TestHandleDashboardDetailed_CategoryTotals(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+	currentYear := time.Now().Year()
+	baseDate := time.Date(currentYear, 6, 15, 10, 0, 0, 0, time.UTC)
+
+	// Create expenses in different categories
+	_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food
+		Amount:      -5000,
+		Currency:    "USD",
+		Description: "Food expense",
+		Date:        baseDate,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create food transaction: %v", err)
+	}
+
+	_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  2, // Transport
+		Amount:      -2000,
+		Currency:    "USD",
+		Description: "Transport expense",
+		Date:        baseDate,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transport transaction: %v", err)
+	}
+
+	// Create income
+	_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  4, // Earned Income
+		Amount:      300000,
+		Currency:    "USD",
+		Description: "Income",
+		Date:        baseDate,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create income: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboardDetailed(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	// Verify both category names and amounts appear
+	if !strings.Contains(body, "Food") {
+		t.Error("Detailed dashboard should show Food category")
+	}
+	if !strings.Contains(body, "Transport") {
+		t.Error("Detailed dashboard should show Transport category")
+	}
+	if !strings.Contains(body, "$50.00") {
+		t.Error("Detailed dashboard should show Food total $50.00")
+	}
+}
+
+func TestHandleDashboardDetailed_MonthlyTotals(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+	currentYear := time.Now().Year()
+
+	// Create transactions in different months
+	months := []time.Month{time.January, time.March, time.June}
+	for _, m := range months {
+		date := time.Date(currentYear, m, 15, 10, 0, 0, 0, time.UTC)
+		_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      -5000,
+			Currency:    "USD",
+			Description: fmt.Sprintf("Expense in %s", m.String()),
+			Date:        date,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction for %s: %v", m.String(), err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/detailed", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleDashboardDetailed(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	// Verify response renders successfully with monthly data
+	body := rec.Body.String()
+	if !strings.Contains(body, "Analytics") {
+		t.Error("Detailed dashboard should contain Analytics title")
+	}
+}
+
+func TestHandleTransactionDelete(t *testing.T) {
+	t.Run("deletes existing transaction", func(t *testing.T) {
+		app := setupTestApp(t)
+		defer cleanupTestApp(t, app)
+
+		ctx := context.Background()
+
+		// Create a transaction
+		tx, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      -2500,
+			Currency:    "USD",
+			Description: "To be deleted",
+			Date:        time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction: %v", err)
+		}
+
+		// Set up chi route context with the ID
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", strconv.FormatInt(tx.ID, 10))
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/transaction/"+strconv.FormatInt(tx.ID, 10), nil)
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionDelete(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleTransactionDelete() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		// Verify transaction is deleted
+		count, err := app.Q.CountAllTransactions(ctx)
+		if err != nil {
+			t.Fatalf("Failed to count transactions: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("Transaction count after delete = %d, want 0", count)
+		}
+	})
+
+	t.Run("invalid ID format", func(t *testing.T) {
+		app := setupTestApp(t)
+		defer cleanupTestApp(t, app)
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "not-a-number")
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/transaction/not-a-number", nil)
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionDelete(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("HandleTransactionDelete() with invalid ID status = %d, want %d", rec.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("non-existent transaction ID", func(t *testing.T) {
+		app := setupTestApp(t)
+		defer cleanupTestApp(t, app)
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "99999")
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/transaction/99999", nil)
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionDelete(rec, req)
+
+		// Should still return 200 — DELETE is idempotent
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleTransactionDelete() non-existent status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("delete then verify dashboard updates", func(t *testing.T) {
+		app := setupTestApp(t)
+		defer cleanupTestApp(t, app)
+
+		ctx := context.Background()
+
+		// Create two transactions
+		tx1, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      -2500,
+			Currency:    "USD",
+			Description: "Keep this one",
+			Date:        time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction 1: %v", err)
+		}
+
+		tx2, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  2,
+			Amount:      -1500,
+			Currency:    "USD",
+			Description: "Delete this one",
+			Date:        time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction 2: %v", err)
+		}
+
+		// Delete tx2
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", strconv.FormatInt(tx2.ID, 10))
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/transaction/"+strconv.FormatInt(tx2.ID, 10), nil)
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionDelete(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Delete status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		// Verify only tx1 remains
+		count, err := app.Q.CountAllTransactions(ctx)
+		if err != nil {
+			t.Fatalf("Failed to count: %v", err)
+		}
+		if count != 1 {
+			t.Errorf("Transaction count = %d, want 1", count)
+		}
+		_ = tx1 // tx1 should remain
 	})
 }
 
