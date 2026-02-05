@@ -58,7 +58,7 @@ func setupTestDB(t *testing.T) (*db.Queries, func()) {
 		('Food', 'expense', '🍔', '#FF5733'),
 		('Transport', 'expense', '🚕', '#33C1FF'),
 		('Housing', 'expense', '🏠', '#8D33FF'),
-		('Salary', 'income', '💰', '#2ECC71');
+		('Earned Income', 'income', '💰', '#2ECC71');
 
 		INSERT INTO users (name, email) VALUES ('TestUser', 'test@example.com');
 	`
@@ -145,7 +145,7 @@ func TestListCategories(t *testing.T) {
 
 	// Verify ordering (by type, then name)
 	// expense types come before income alphabetically
-	expectedOrder := []string{"Food", "Housing", "Transport", "Salary"}
+	expectedOrder := []string{"Food", "Housing", "Transport", "Earned Income"}
 	for i, cat := range categories {
 		if cat.Name != expectedOrder[i] {
 			t.Errorf("Category[%d].Name = %q, want %q", i, cat.Name, expectedOrder[i])
@@ -438,4 +438,336 @@ func TestCategoryTypes(t *testing.T) {
 	if incomeCount != 1 {
 		t.Errorf("Expected 1 income category, got %d", incomeCount)
 	}
+}
+
+func TestGetDistinctTransactionYears(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	t.Run("returns empty list when no transactions", func(t *testing.T) {
+		years, err := queries.GetDistinctTransactionYears(ctx)
+		if err != nil {
+			t.Fatalf("GetDistinctTransactionYears() error = %v", err)
+		}
+		if len(years) != 0 {
+			t.Errorf("Expected 0 years, got %d", len(years))
+		}
+	})
+
+	t.Run("returns distinct years", func(t *testing.T) {
+		// Create transactions in different years
+		_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      1000,
+			Currency:    "USD",
+			Description: "Test 2024",
+			Date:        time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create 2024 transaction: %v", err)
+		}
+
+		_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      2000,
+			Currency:    "USD",
+			Description: "Test 2025",
+			Date:        time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create 2025 transaction: %v", err)
+		}
+
+		// Create another transaction in 2024 (should not duplicate)
+		_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      1500,
+			Currency:    "USD",
+			Description: "Test 2024 again",
+			Date:        time.Date(2024, 8, 20, 10, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create second 2024 transaction: %v", err)
+		}
+
+		years, err := queries.GetDistinctTransactionYears(ctx)
+		if err != nil {
+			t.Fatalf("GetDistinctTransactionYears() error = %v", err)
+		}
+
+		if len(years) != 2 {
+			t.Errorf("Expected 2 distinct years, got %d", len(years))
+		}
+
+		// Should be ordered DESC (2025 first, then 2024)
+		if years[0] != 2025 {
+			t.Errorf("First year should be 2025, got %d", years[0])
+		}
+		if years[1] != 2024 {
+			t.Errorf("Second year should be 2024, got %d", years[1])
+		}
+	})
+}
+
+func TestListTransactionsByYear(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Create transactions in different years
+	_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      1000,
+		Currency:    "USD",
+		Description: "2024 transaction",
+		Date:        time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create 2024 transaction: %v", err)
+	}
+
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  2,
+		Amount:      2000,
+		Currency:    "USD",
+		Description: "2025 transaction",
+		Date:        time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create 2025 transaction: %v", err)
+	}
+
+	t.Run("filters by year 2024", func(t *testing.T) {
+		txs, err := queries.ListTransactionsByYear(ctx, "2024")
+		if err != nil {
+			t.Fatalf("ListTransactionsByYear() error = %v", err)
+		}
+
+		if len(txs) != 1 {
+			t.Errorf("Expected 1 transaction for 2024, got %d", len(txs))
+		}
+		if len(txs) > 0 && txs[0].Description != "2024 transaction" {
+			t.Errorf("Expected '2024 transaction', got %q", txs[0].Description)
+		}
+	})
+
+	t.Run("filters by year 2025", func(t *testing.T) {
+		txs, err := queries.ListTransactionsByYear(ctx, "2025")
+		if err != nil {
+			t.Fatalf("ListTransactionsByYear() error = %v", err)
+		}
+
+		if len(txs) != 1 {
+			t.Errorf("Expected 1 transaction for 2025, got %d", len(txs))
+		}
+		if len(txs) > 0 && txs[0].Description != "2025 transaction" {
+			t.Errorf("Expected '2025 transaction', got %q", txs[0].Description)
+		}
+	})
+
+	t.Run("returns empty for year with no transactions", func(t *testing.T) {
+		txs, err := queries.ListTransactionsByYear(ctx, "2020")
+		if err != nil {
+			t.Fatalf("ListTransactionsByYear() error = %v", err)
+		}
+
+		if len(txs) != 0 {
+			t.Errorf("Expected 0 transactions for 2020, got %d", len(txs))
+		}
+	})
+}
+
+func TestGetCategoryTotalsByYear(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Create transactions
+	_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food
+		Amount:      2500,
+		Currency:    "USD",
+		Description: "Pizza",
+		Date:        time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food
+		Amount:      1500,
+		Currency:    "USD",
+		Description: "Burger",
+		Date:        time.Date(2024, 7, 20, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  4, // Earned Income (income)
+		Amount:      500000,
+		Currency:    "USD",
+		Description: "Monthly salary",
+		Date:        time.Date(2024, 6, 1, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	t.Run("returns category totals", func(t *testing.T) {
+		totals, err := queries.GetCategoryTotalsByYear(ctx, "2024")
+		if err != nil {
+			t.Fatalf("GetCategoryTotalsByYear() error = %v", err)
+		}
+
+		if len(totals) != 4 {
+			t.Errorf("Expected 4 categories, got %d", len(totals))
+		}
+
+		// Find Food category total
+		var foodTotal db.GetCategoryTotalsByYearRow
+		var earnedIncomeTotal db.GetCategoryTotalsByYearRow
+		for _, cat := range totals {
+			if cat.CategoryName == "Food" {
+				foodTotal = cat
+			}
+			if cat.CategoryName == "Earned Income" {
+				earnedIncomeTotal = cat
+			}
+		}
+
+		if foodTotal.TotalAmount != 4000 { // 2500 + 1500
+			t.Errorf("Food total = %d, want 4000", foodTotal.TotalAmount)
+		}
+		if foodTotal.TransactionCount != 2 {
+			t.Errorf("Food transaction count = %d, want 2", foodTotal.TransactionCount)
+		}
+
+		if earnedIncomeTotal.TotalAmount != 500000 {
+			t.Errorf("Earned Income total = %d, want 500000", earnedIncomeTotal.TotalAmount)
+		}
+		if earnedIncomeTotal.TransactionCount != 1 {
+			t.Errorf("Earned Income transaction count = %d, want 1", earnedIncomeTotal.TransactionCount)
+		}
+	})
+
+	t.Run("returns zero for categories with no transactions", func(t *testing.T) {
+		totals, err := queries.GetCategoryTotalsByYear(ctx, "2024")
+		if err != nil {
+			t.Fatalf("GetCategoryTotalsByYear() error = %v", err)
+		}
+
+		// Transport and Housing should have 0 transactions
+		for _, cat := range totals {
+			if cat.CategoryName == "Transport" || cat.CategoryName == "Housing" {
+				if cat.TotalAmount != 0 {
+					t.Errorf("%s total should be 0, got %d", cat.CategoryName, cat.TotalAmount)
+				}
+				if cat.TransactionCount != 0 {
+					t.Errorf("%s transaction count should be 0, got %d", cat.CategoryName, cat.TransactionCount)
+				}
+			}
+		}
+	})
+}
+
+func TestGetMonthlyTotalsByYear(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Create transactions in different months
+	_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food (expense)
+		Amount:      2000,
+		Currency:    "USD",
+		Description: "January expense",
+		Date:        time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  4, // Earned Income (income)
+		Amount:      500000,
+		Currency:    "USD",
+		Description: "January salary",
+		Date:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1, // Food (expense)
+		Amount:      3000,
+		Currency:    "USD",
+		Description: "February expense",
+		Date:        time.Date(2024, 2, 10, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	t.Run("returns monthly totals grouped by type", func(t *testing.T) {
+		totals, err := queries.GetMonthlyTotalsByYear(ctx, "2024")
+		if err != nil {
+			t.Fatalf("GetMonthlyTotalsByYear() error = %v", err)
+		}
+
+		// Should have 3 entries: Jan expense, Jan income, Feb expense
+		if len(totals) != 3 {
+			t.Errorf("Expected 3 monthly entries, got %d", len(totals))
+		}
+
+		// Check January totals
+		var janExpense, janIncome, febExpense int64
+		for _, m := range totals {
+			if m.Month == 1 && m.CategoryType == "expense" {
+				janExpense = m.TotalAmount
+			}
+			if m.Month == 1 && m.CategoryType == "income" {
+				janIncome = m.TotalAmount
+			}
+			if m.Month == 2 && m.CategoryType == "expense" {
+				febExpense = m.TotalAmount
+			}
+		}
+
+		if janExpense != 2000 {
+			t.Errorf("January expense = %d, want 2000", janExpense)
+		}
+		if janIncome != 500000 {
+			t.Errorf("January income = %d, want 500000", janIncome)
+		}
+		if febExpense != 3000 {
+			t.Errorf("February expense = %d, want 3000", febExpense)
+		}
+	})
+
+	t.Run("returns empty for year with no transactions", func(t *testing.T) {
+		totals, err := queries.GetMonthlyTotalsByYear(ctx, "2020")
+		if err != nil {
+			t.Fatalf("GetMonthlyTotalsByYear() error = %v", err)
+		}
+
+		if len(totals) != 0 {
+			t.Errorf("Expected 0 entries for 2020, got %d", len(totals))
+		}
+	})
 }

@@ -24,7 +24,7 @@ run: generate
 
 # Run with hot reload (requires air, optional)
 dev:
-	air
+	export PATH=$(PATH):$(HOME)/go/bin && air
 
 clean:
 	rm -rf bin

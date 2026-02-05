@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,50 +15,146 @@ func (app *Application) HandleHome(w http.ResponseWriter, r *http.Request) {
 	templates.Home().Render(r.Context(), w)
 }
 
+const transactionsPageSize = 20
+
 func (app *Application) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// 1. Fetch recent transactions
-	txs, err := app.Q.ListRecentTransactions(ctx)
+	// Get year from query param, default to current year
+	yearParam := r.URL.Query().Get("year")
+	if yearParam == "" {
+		yearParam = fmt.Sprintf("%d", time.Now().Year())
+	}
+
+	// Get available years for navigation
+	years, err := app.Q.GetDistinctTransactionYearsWrapped(ctx)
 	if err != nil {
-		http.Error(w, "Failed to load dashboard: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to load years: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// 2. Fetch category stats for current month
-	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-
-	rawStats, err := app.Q.GetCategoryStats(ctx, startOfMonth)
-	if err != nil {
-		// Log error but continue with empty stats
-		rawStats = []db.GetCategoryStatsRow{}
-	}
-
-	// 3. Transform to map for easier lookup in template
-	// Map Category Name -> Total Amount (in cents)
-	statsMap := make(map[string]int64)
-	for _, s := range rawStats {
-		// Store absolute value for display in the grid if it's an expense
-		// The query returns sum(amount), which might be negative for expenses
-		// The query returns sum(amount), which might be negative for expenses
-		var val int64
-		if s.TotalAmount != nil {
-			switch v := s.TotalAmount.(type) {
-			case int64:
-				val = v
-			case float64:
-				val = int64(v)
-			default:
-				val = 0
-			}
+	// If no transactions exist yet, add current year to list
+	currentYear := int64(time.Now().Year())
+	hasCurrentYear := false
+	for _, y := range years {
+		if y.Year == currentYear {
+			hasCurrentYear = true
+			break
 		}
-
-		// NOTE: We keep expenses negative so the UI knows they are expenses
-		statsMap[s.Name] = val
+	}
+	if !hasCurrentYear {
+		years = append([]db.GetDistinctTransactionYearsRow{{Year: currentYear}}, years...)
 	}
 
-	templates.Dashboard(txs, statsMap).Render(ctx, w)
+	// Fetch first page of transactions
+	txs, err := app.Q.ListTransactionsByYearPaginated(ctx, db.ListTransactionsByYearPaginatedParams{
+		Year:   yearParam,
+		Limit:  transactionsPageSize,
+		Offset: 0,
+	})
+	if err != nil {
+		http.Error(w, "Failed to load transactions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Get total count for pagination
+	totalCount, err := app.Q.CountTransactionsByYear(ctx, yearParam)
+	if err != nil {
+		http.Error(w, "Failed to count transactions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch category totals for the mosaic
+	categoryTotals, err := app.Q.GetCategoryTotalsByYear(ctx, yearParam)
+	if err != nil {
+		http.Error(w, "Failed to load category totals: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	hasMore := int64(len(txs)) < totalCount
+
+	templates.Dashboard(txs, categoryTotals, years, yearParam, totalCount, hasMore).Render(ctx, w)
+}
+
+func (app *Application) HandleTransactionsPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	yearParam := r.URL.Query().Get("year")
+	if yearParam == "" {
+		yearParam = fmt.Sprintf("%d", time.Now().Year())
+	}
+
+	offsetParam := r.URL.Query().Get("offset")
+	offset, _ := strconv.ParseInt(offsetParam, 10, 64)
+
+	// Fetch page of transactions
+	txs, err := app.Q.ListTransactionsByYearPaginated(ctx, db.ListTransactionsByYearPaginatedParams{
+		Year:   yearParam,
+		Limit:  transactionsPageSize,
+		Offset: offset,
+	})
+	if err != nil {
+		http.Error(w, "Failed to load transactions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Get total count for pagination
+	totalCount, err := app.Q.CountTransactionsByYear(ctx, yearParam)
+	if err != nil {
+		http.Error(w, "Failed to count transactions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	hasMore := offset+int64(len(txs)) < totalCount
+	nextOffset := offset + int64(len(txs))
+
+	templates.TransactionsList(txs, yearParam, nextOffset, hasMore).Render(ctx, w)
+}
+
+func (app *Application) HandleDashboardDetailed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get year from query param, default to current year
+	yearParam := r.URL.Query().Get("year")
+	if yearParam == "" {
+		yearParam = fmt.Sprintf("%d", time.Now().Year())
+	}
+
+	// Get available years for navigation
+	years, err := app.Q.GetDistinctTransactionYearsWrapped(ctx)
+	if err != nil {
+		http.Error(w, "Failed to load years: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// If no transactions exist yet, add current year to list
+	currentYear := int64(time.Now().Year())
+	hasCurrentYear := false
+	for _, y := range years {
+		if y.Year == currentYear {
+			hasCurrentYear = true
+			break
+		}
+	}
+	if !hasCurrentYear {
+		years = append([]db.GetDistinctTransactionYearsRow{{Year: currentYear}}, years...)
+	}
+
+	// Fetch category totals for pie chart
+	categoryTotals, err := app.Q.GetCategoryTotalsByYear(ctx, yearParam)
+	if err != nil {
+		http.Error(w, "Failed to load category totals: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch monthly totals for bar chart
+	monthlyTotals, err := app.Q.GetMonthlyTotalsByYear(ctx, yearParam)
+	if err != nil {
+		http.Error(w, "Failed to load monthly totals: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	templates.DashboardDetailed(categoryTotals, monthlyTotals, years, yearParam).Render(ctx, w)
 }
 
 func (app *Application) HandleTransactionCreate(w http.ResponseWriter, r *http.Request) {
@@ -71,43 +168,55 @@ func (app *Application) HandleTransactionCreate(w http.ResponseWriter, r *http.R
 	}
 
 	// 2. Resolve Category
-	// For now, we query by name. If not found, use a default ID (e.g. 1) or create one.
+	// For now, we query by name. If not found, try alternative names or use default.
 	var catID int64
+	var catName string
 	var catType string
-
 	cat, err := app.Q.GetCategoryByName(r.Context(), parsed.Category)
 	if err != nil {
-		// Fallback to first category
-		cats, _ := app.Q.ListCategories(r.Context())
-		if len(cats) > 0 {
-			catID = cats[0].ID
-			catType = cats[0].Type
+		// Try alternative name for backwards compatibility
+		altName := parsed.Category
+		if parsed.Category == "Earned Income" {
+			altName = "Salary"
+		}
+		cat, err = app.Q.GetCategoryByName(r.Context(), altName)
+		if err != nil {
+			// Fallback to first category
+			cats, _ := app.Q.ListCategories(r.Context())
+			if len(cats) > 0 {
+				catID = cats[0].ID
+				catName = cats[0].Name
+				catType = cats[0].Type
+			} else {
+				catID = 1
+				catName = "Unknown"
+				catType = "expense"
+			}
 		} else {
-			catID = 1 // Risky if empty
-			catType = "expense"
+			catID = cat.ID
+			catName = cat.Name
+			catType = cat.Type
 		}
 	} else {
 		catID = cat.ID
+		catName = cat.Name
 		catType = cat.Type
-	}
-
-	// 2.5 Negate amount if generic expense
-	// If the user typed "100 pizza", we parse 10000.
-	// If category is expense, store -10000.
-	// If category is income, keep 10000.
-	finalAmount := parsed.Amount
-	if catType == "expense" && finalAmount > 0 {
-		finalAmount = -finalAmount
 	}
 
 	// 3. User ID (Hardcoded for single user MVP/Monolith)
 	userID := int64(1)
 
-	// 4. Insert
+	// 4. Determine amount sign (expenses are negative, income is positive)
+	amount := parsed.Amount
+	if catType == "expense" {
+		amount = -amount
+	}
+
+	// 5. Insert
 	_, err = app.Q.CreateTransaction(r.Context(), db.CreateTransactionParams{
 		UserID:      userID,
 		CategoryID:  catID,
-		Amount:      finalAmount,
+		Amount:      amount,
 		Currency:    "USD",
 		Description: parsed.Description,
 		Date:        time.Now(),
@@ -117,31 +226,36 @@ func (app *Application) HandleTransactionCreate(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// 5. Render Success
-	displayAmt := formatMoney(finalAmount)
-	templates.TransactionSuccess(displayAmt, parsed.Description, finalAmount < 0).Render(r.Context(), w)
+	// 6. Render Success (display positive amount)
+	displayAmt := formatMoney(parsed.Amount)
+	templates.TransactionSuccess(displayAmt, parsed.Description, catName).Render(r.Context(), w)
 }
 
 func (app *Application) HandleTransactionDelete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get transaction ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		http.Error(w, "Invalid transaction ID", http.StatusBadRequest)
 		return
 	}
 
-	// Hardcoded user ID for now
+	// User ID (hardcoded for single user MVP)
 	userID := int64(1)
 
-	err = app.Q.DeleteTransaction(r.Context(), db.DeleteTransactionParams{
+	// Delete transaction
+	err = app.Q.DeleteTransaction(ctx, db.DeleteTransactionParams{
 		ID:     id,
 		UserID: userID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to delete", http.StatusInternalServerError)
+		http.Error(w, "Failed to delete transaction: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Return empty response for HTMX to remove the element
 	w.WriteHeader(http.StatusOK)
 }
 
