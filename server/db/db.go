@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.countAllTransactionsStmt, err = db.PrepareContext(ctx, countAllTransactions); err != nil {
+		return nil, fmt.Errorf("error preparing query CountAllTransactions: %w", err)
+	}
 	if q.countTransactionsByYearStmt, err = db.PrepareContext(ctx, countTransactionsByYear); err != nil {
 		return nil, fmt.Errorf("error preparing query CountTransactionsByYear: %w", err)
 	}
@@ -68,6 +71,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.countAllTransactionsStmt != nil {
+		if cerr := q.countAllTransactionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countAllTransactionsStmt: %w", cerr)
+		}
+	}
 	if q.countTransactionsByYearStmt != nil {
 		if cerr := q.countTransactionsByYearStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countTransactionsByYearStmt: %w", cerr)
@@ -172,6 +180,7 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                                  DBTX
 	tx                                  *sql.Tx
+	countAllTransactionsStmt            *sql.Stmt
 	countTransactionsByYearStmt         *sql.Stmt
 	createTransactionStmt               *sql.Stmt
 	deleteTransactionStmt               *sql.Stmt
@@ -191,6 +200,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                                  tx,
 		tx:                                  tx,
+		countAllTransactionsStmt:            q.countAllTransactionsStmt,
 		countTransactionsByYearStmt:         q.countTransactionsByYearStmt,
 		createTransactionStmt:               q.createTransactionStmt,
 		deleteTransactionStmt:               q.deleteTransactionStmt,
