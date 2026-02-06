@@ -33,6 +33,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createTransactionStmt, err = db.PrepareContext(ctx, createTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTransaction: %w", err)
 	}
+	if q.deleteAllTransactionsStmt, err = db.PrepareContext(ctx, deleteAllTransactions); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteAllTransactions: %w", err)
+	}
 	if q.deleteTransactionStmt, err = db.PrepareContext(ctx, deleteTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteTransaction: %w", err)
 	}
@@ -50,6 +53,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
+	}
+	if q.listAllTransactionsForExportStmt, err = db.PrepareContext(ctx, listAllTransactionsForExport); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllTransactionsForExport: %w", err)
 	}
 	if q.listCategoriesStmt, err = db.PrepareContext(ctx, listCategories); err != nil {
 		return nil, fmt.Errorf("error preparing query ListCategories: %w", err)
@@ -86,6 +92,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createTransactionStmt: %w", cerr)
 		}
 	}
+	if q.deleteAllTransactionsStmt != nil {
+		if cerr := q.deleteAllTransactionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteAllTransactionsStmt: %w", cerr)
+		}
+	}
 	if q.deleteTransactionStmt != nil {
 		if cerr := q.deleteTransactionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteTransactionStmt: %w", cerr)
@@ -114,6 +125,11 @@ func (q *Queries) Close() error {
 	if q.getUserStmt != nil {
 		if cerr := q.getUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserStmt: %w", cerr)
+		}
+	}
+	if q.listAllTransactionsForExportStmt != nil {
+		if cerr := q.listAllTransactionsForExportStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllTransactionsForExportStmt: %w", cerr)
 		}
 	}
 	if q.listCategoriesStmt != nil {
@@ -183,12 +199,14 @@ type Queries struct {
 	countAllTransactionsStmt            *sql.Stmt
 	countTransactionsByYearStmt         *sql.Stmt
 	createTransactionStmt               *sql.Stmt
+	deleteAllTransactionsStmt           *sql.Stmt
 	deleteTransactionStmt               *sql.Stmt
 	getCategoryByNameStmt               *sql.Stmt
 	getCategoryTotalsByYearStmt         *sql.Stmt
 	getDistinctTransactionYearsStmt     *sql.Stmt
 	getMonthlyTotalsByYearStmt          *sql.Stmt
 	getUserStmt                         *sql.Stmt
+	listAllTransactionsForExportStmt    *sql.Stmt
 	listCategoriesStmt                  *sql.Stmt
 	listRecentTransactionsStmt          *sql.Stmt
 	listTransactionsByYearStmt          *sql.Stmt
@@ -203,12 +221,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		countAllTransactionsStmt:            q.countAllTransactionsStmt,
 		countTransactionsByYearStmt:         q.countTransactionsByYearStmt,
 		createTransactionStmt:               q.createTransactionStmt,
+		deleteAllTransactionsStmt:           q.deleteAllTransactionsStmt,
 		deleteTransactionStmt:               q.deleteTransactionStmt,
 		getCategoryByNameStmt:               q.getCategoryByNameStmt,
 		getCategoryTotalsByYearStmt:         q.getCategoryTotalsByYearStmt,
 		getDistinctTransactionYearsStmt:     q.getDistinctTransactionYearsStmt,
 		getMonthlyTotalsByYearStmt:          q.getMonthlyTotalsByYearStmt,
 		getUserStmt:                         q.getUserStmt,
+		listAllTransactionsForExportStmt:    q.listAllTransactionsForExportStmt,
 		listCategoriesStmt:                  q.listCategoriesStmt,
 		listRecentTransactionsStmt:          q.listRecentTransactionsStmt,
 		listTransactionsByYearStmt:          q.listTransactionsByYearStmt,

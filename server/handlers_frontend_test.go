@@ -1001,6 +1001,161 @@ func TestHandleTransactionDelete(t *testing.T) {
 	})
 }
 
+func TestHandleSettings(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleSettings(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleSettings() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "Settings") {
+		t.Error("HandleSettings() response should contain 'Settings'")
+	}
+	if !strings.Contains(body, "Export") {
+		t.Error("HandleSettings() response should contain 'Export'")
+	}
+	if !strings.Contains(body, "Wipe") {
+		t.Error("HandleSettings() response should contain 'Wipe'")
+	}
+}
+
+func TestHandleExportCSV(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	t.Run("empty export", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/export/csv", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleExportCSV(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleExportCSV() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		contentType := rec.Header().Get("Content-Type")
+		if contentType != "text/csv" {
+			t.Errorf("Content-Type = %q, want %q", contentType, "text/csv")
+		}
+
+		disposition := rec.Header().Get("Content-Disposition")
+		if !strings.Contains(disposition, "cheapskate-export.csv") {
+			t.Errorf("Content-Disposition = %q, want to contain 'cheapskate-export.csv'", disposition)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "ID,Date,Description,Category,Type,Amount,Currency") {
+			t.Error("CSV should contain header row")
+		}
+	})
+
+	t.Run("export with transactions", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      -2500,
+			Currency:    "USD",
+			Description: "Test pizza",
+			Date:        time.Date(2025, 6, 15, 10, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create test transaction: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/export/csv", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleExportCSV(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("HandleExportCSV() status = %d, want %d", rec.Code, http.StatusOK)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "Test pizza") {
+			t.Error("CSV should contain transaction description")
+		}
+		if !strings.Contains(body, "25.00") {
+			t.Error("CSV should contain formatted amount")
+		}
+		if !strings.Contains(body, "Food") {
+			t.Error("CSV should contain category name")
+		}
+	})
+}
+
+func TestHandleWipeData(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	// Create some transactions
+	ctx := context.Background()
+	_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      2500,
+		Currency:    "USD",
+		Description: "Test pizza",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test transaction: %v", err)
+	}
+
+	_, err = app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  2,
+		Amount:      1500,
+		Currency:    "USD",
+		Description: "Test taxi",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test transaction: %v", err)
+	}
+
+	// Verify transactions exist
+	txs, err := app.Q.ListRecentTransactions(ctx)
+	if err != nil {
+		t.Fatalf("Failed to list transactions: %v", err)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("Expected 2 transactions, got %d", len(txs))
+	}
+
+	// Wipe data
+	req := httptest.NewRequest(http.MethodDelete, "/api/data", nil)
+	rec := httptest.NewRecorder()
+
+	app.HandleWipeData(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleWipeData() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "deleted") {
+		t.Error("HandleWipeData() response should confirm deletion")
+	}
+
+	// Verify transactions are gone
+	txs, err = app.Q.ListRecentTransactions(ctx)
+	if err != nil {
+		t.Fatalf("Failed to list transactions: %v", err)
+	}
+	if len(txs) != 0 {
+		t.Errorf("Expected 0 transactions after wipe, got %d", len(txs))
+	}
+}
+
 func TestHandleTransactionCreate_AmountConversion(t *testing.T) {
 	app := setupTestApp(t)
 	defer cleanupTestApp(t, app)

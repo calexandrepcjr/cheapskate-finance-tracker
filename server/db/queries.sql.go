@@ -501,3 +501,60 @@ func (q *Queries) DeleteTransaction(ctx context.Context, arg DeleteTransactionPa
 	_, err := q.exec(ctx, q.deleteTransactionStmt, deleteTransaction, arg.ID, arg.UserID)
 	return err
 }
+
+const listAllTransactionsForExport = `-- name: ListAllTransactionsForExport :many
+SELECT t.id, t.amount, t.currency, t.description, t.date, c.name as category_name, c.type as category_type
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+ORDER BY t.date DESC
+`
+
+type ListAllTransactionsForExportRow struct {
+	ID           int64     `json:"id"`
+	Amount       int64     `json:"amount"`
+	Currency     string    `json:"currency"`
+	Description  string    `json:"description"`
+	Date         time.Time `json:"date"`
+	CategoryName string    `json:"category_name"`
+	CategoryType string    `json:"category_type"`
+}
+
+func (q *Queries) ListAllTransactionsForExport(ctx context.Context) ([]ListAllTransactionsForExportRow, error) {
+	rows, err := q.query(ctx, q.listAllTransactionsForExportStmt, listAllTransactionsForExport)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllTransactionsForExportRow
+	for rows.Next() {
+		var i ListAllTransactionsForExportRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Amount,
+			&i.Currency,
+			&i.Description,
+			&i.Date,
+			&i.CategoryName,
+			&i.CategoryType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteAllTransactions = `-- name: DeleteAllTransactions :exec
+DELETE FROM transactions
+`
+
+func (q *Queries) DeleteAllTransactions(ctx context.Context) error {
+	_, err := q.exec(ctx, q.deleteAllTransactionsStmt, deleteAllTransactions)
+	return err
+}

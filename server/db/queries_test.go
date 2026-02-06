@@ -682,6 +682,122 @@ func TestGetCategoryTotalsByYear(t *testing.T) {
 	})
 }
 
+func TestListAllTransactionsForExport(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	t.Run("returns empty list when no transactions", func(t *testing.T) {
+		txs, err := queries.ListAllTransactionsForExport(ctx)
+		if err != nil {
+			t.Fatalf("ListAllTransactionsForExport() error = %v", err)
+		}
+		if len(txs) != 0 {
+			t.Errorf("Expected 0 transactions, got %d", len(txs))
+		}
+	})
+
+	t.Run("returns all transactions with category info", func(t *testing.T) {
+		_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  1,
+			Amount:      2500,
+			Currency:    "USD",
+			Description: "Test pizza",
+			Date:        time.Date(2025, 6, 15, 10, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction: %v", err)
+		}
+
+		_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:      1,
+			CategoryID:  4,
+			Amount:      500000,
+			Currency:    "USD",
+			Description: "Salary",
+			Date:        time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create transaction: %v", err)
+		}
+
+		txs, err := queries.ListAllTransactionsForExport(ctx)
+		if err != nil {
+			t.Fatalf("ListAllTransactionsForExport() error = %v", err)
+		}
+		if len(txs) != 2 {
+			t.Errorf("Expected 2 transactions, got %d", len(txs))
+		}
+
+		// Should be ordered by date DESC (pizza on Jun 15 before salary on Jun 1)
+		if txs[0].Description != "Test pizza" {
+			t.Errorf("First transaction description = %q, want %q", txs[0].Description, "Test pizza")
+		}
+		if txs[0].CategoryName != "Food" {
+			t.Errorf("First transaction category = %q, want %q", txs[0].CategoryName, "Food")
+		}
+		if txs[1].CategoryType != "income" {
+			t.Errorf("Second transaction type = %q, want %q", txs[1].CategoryType, "income")
+		}
+	})
+}
+
+func TestDeleteAllTransactions(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Create some transactions
+	_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      2500,
+		Currency:    "USD",
+		Description: "Test pizza",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  2,
+		Amount:      1500,
+		Currency:    "USD",
+		Description: "Test taxi",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	// Verify transactions exist
+	txs, err := queries.ListRecentTransactions(ctx)
+	if err != nil {
+		t.Fatalf("ListRecentTransactions() error = %v", err)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("Expected 2 transactions, got %d", len(txs))
+	}
+
+	// Delete all
+	err = queries.DeleteAllTransactions(ctx)
+	if err != nil {
+		t.Fatalf("DeleteAllTransactions() error = %v", err)
+	}
+
+	// Verify all gone
+	txs, err = queries.ListRecentTransactions(ctx)
+	if err != nil {
+		t.Fatalf("ListRecentTransactions() error = %v", err)
+	}
+	if len(txs) != 0 {
+		t.Errorf("Expected 0 transactions after delete, got %d", len(txs))
+	}
+}
+
 func TestGetMonthlyTotalsByYear(t *testing.T) {
 	queries, cleanup := setupTestDB(t)
 	defer cleanup()
