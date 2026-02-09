@@ -74,9 +74,10 @@ func setupTestApp(t *testing.T) *Application {
 	queries := db.New(dbConn)
 
 	return &Application{
-		Config: Config{Port: 8080, DBPath: ":memory:"},
-		DB:     dbConn,
-		Q:      queries,
+		Config:    Config{Port: 8080, DBPath: ":memory:"},
+		DB:        dbConn,
+		Q:         queries,
+		CatConfig: defaultCategoryConfig(),
 	}
 }
 
@@ -1023,6 +1024,20 @@ func TestHandleSettings(t *testing.T) {
 	}
 	if !strings.Contains(body, "Wipe") {
 		t.Error("HandleSettings() response should contain 'Wipe'")
+	}
+
+	// Verify category mappings are shown
+	if !strings.Contains(body, "Category Mappings") {
+		t.Error("HandleSettings() response should contain 'Category Mappings'")
+	}
+	if !strings.Contains(body, "Food") {
+		t.Error("HandleSettings() response should contain 'Food' category")
+	}
+	if !strings.Contains(body, "Transport") {
+		t.Error("HandleSettings() response should contain 'Transport' category")
+	}
+	if !strings.Contains(body, "pizza") {
+		t.Error("HandleSettings() response should contain 'pizza' keyword")
 	}
 }
 

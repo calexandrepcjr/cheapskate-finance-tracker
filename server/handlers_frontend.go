@@ -162,7 +162,7 @@ func (app *Application) HandleTransactionCreate(w http.ResponseWriter, r *http.R
 	input := r.FormValue("input")
 
 	// 1. Parse
-	parsed, err := ParseTransaction(input)
+	parsed, err := ParseTransaction(input, app.CatConfig)
 	if err != nil {
 		templates.TransactionError("Could not understand that. Try '50 pizza'").Render(r.Context(), w)
 		return
@@ -269,7 +269,16 @@ func formatFloat(f float64, prec int) string {
 }
 
 func (app *Application) HandleSettings(w http.ResponseWriter, r *http.Request) {
-	templates.Settings().Render(r.Context(), w)
+	var mappings []templates.CategoryMapping
+	if app.CatConfig != nil {
+		for _, cat := range app.CatConfig.Categories {
+			mappings = append(mappings, templates.CategoryMapping{
+				Name:     cat.Name,
+				Keywords: cat.Keywords,
+			})
+		}
+	}
+	templates.Settings(mappings).Render(r.Context(), w)
 }
 
 func (app *Application) HandleExportCSV(w http.ResponseWriter, r *http.Request) {

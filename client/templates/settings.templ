@@ -1,12 +1,59 @@
 package templates
 
-templ Settings() {
-	@Layout("Settings", SettingsView())
+import "strings"
+
+type CategoryMapping struct {
+	Name     string
+	Keywords []string
 }
 
-templ SettingsView() {
+templ Settings(mappings []CategoryMapping) {
+	@Layout("Settings", SettingsView(mappings))
+}
+
+templ SettingsView(mappings []CategoryMapping) {
 	<div class="space-y-6">
 		<h2 class="text-2xl font-bold">Settings</h2>
+
+		<!-- Category Mappings -->
+		if len(mappings) > 0 {
+			<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-4">
+				<div>
+					<h3 class="font-bold text-gray-700">Category Mappings</h3>
+					<p class="text-sm text-gray-500 mt-1">
+						When you add a transaction, keywords in your description are matched to categories automatically.
+						Edit <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">categories.json</code> to customize.
+					</p>
+				</div>
+
+				<div class="space-y-3">
+					for _, m := range mappings {
+						<details class="group border border-gray-100 rounded-lg">
+							<summary class="flex items-center justify-between cursor-pointer px-4 py-3 hover:bg-gray-50 rounded-lg transition">
+								<div class="flex items-center gap-2">
+									<span class="font-medium text-gray-800">{ m.Name }</span>
+									<span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+										{ keywordCount(len(m.Keywords)) }
+									</span>
+								</div>
+								<svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</summary>
+							<div class="px-4 pb-3">
+								<div class="flex flex-wrap gap-1.5 pt-2 border-t border-gray-50">
+									for _, kw := range m.Keywords {
+										<span class="inline-block text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+											{ kw }
+										</span>
+									}
+								</div>
+							</div>
+						</details>
+					}
+				</div>
+			</div>
+		}
 
 		<!-- Export Data -->
 		<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-3">
@@ -53,6 +100,25 @@ templ SettingsView() {
 			<div id="wipe-result"></div>
 		</div>
 	</div>
+}
+
+func keywordCount(n int) string {
+	if n == 1 {
+		return "1 keyword"
+	}
+	return strings.Join([]string{itoa(n), "keywords"}, " ")
+}
+
+func itoa(n int) string {
+	s := ""
+	if n == 0 {
+		return "0"
+	}
+	for n > 0 {
+		s = string(rune('0'+n%10)) + s
+		n /= 10
+	}
+	return s
 }
 
 templ WipeSuccess() {

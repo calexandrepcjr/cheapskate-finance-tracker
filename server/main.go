@@ -16,20 +16,23 @@ import (
 )
 
 type Config struct {
-	Port   int
-	DBPath string
+	Port           int
+	DBPath         string
+	CategoriesPath string
 }
 
 type Application struct {
-	Config Config
-	DB     *sql.DB
-	Q      *db.Queries
+	Config    Config
+	DB        *sql.DB
+	Q         *db.Queries
+	CatConfig *CategoryConfig
 }
 
 func main() {
 	var cfg Config
 	flag.IntVar(&cfg.Port, "port", 8080, "HTTP server port")
 	flag.StringVar(&cfg.DBPath, "db", "cheapskate.db", "Path to SQLite database")
+	flag.StringVar(&cfg.CategoriesPath, "categories", "categories.json", "Path to category mappings config file")
 	flag.Parse()
 
 	// Initialize Database
@@ -46,10 +49,14 @@ func main() {
 	// Initialize SQLC queries
 	queries := db.New(dbConn)
 
+	// Load category mappings
+	catConfig := LoadCategoryConfig(cfg.CategoriesPath)
+
 	app := &Application{
-		Config: cfg,
-		DB:     dbConn,
-		Q:      queries,
+		Config:    cfg,
+		DB:        dbConn,
+		Q:         queries,
+		CatConfig: catConfig,
 	}
 
 	// Apply migrations
@@ -126,7 +133,70 @@ func (app *Application) ensureSeed() error {
 		log.Printf("Warning: Could not clean up duplicate Salary categories: %v", err)
 	}
 
+	// Ensure all categories referenced by the category config exist in the database
+	if app.CatConfig != nil {
+		app.ensureCategoriesFromConfig()
+	}
+
 	return nil
+}
+
+// ensureCategoriesFromConfig creates any missing categories referenced in the config file.
+func (app *Application) ensureCategoriesFromConfig() {
+	type catDef struct {
+		catType string
+		icon    string
+		color   string
+	}
+
+	knownCategories := map[string]catDef{
+		"Earned Income":     {catType: "income", icon: "💰", color: "#2ECC71"},
+		"Investment Income": {catType: "income", icon: "📈", color: "#27AE60"},
+		"Other Income":      {catType: "income", icon: "💵", color: "#16A085"},
+		"Food":              {catType: "expense", icon: "🍔", color: "#FF5733"},
+		"Transport":         {catType: "expense", icon: "🚕", color: "#33C1FF"},
+		"Housing":           {catType: "expense", icon: "🏠", color: "#8D33FF"},
+		"Entertainment":     {catType: "expense", icon: "🎬", color: "#E74C3C"},
+		"Shopping":          {catType: "expense", icon: "🛍️", color: "#9B59B6"},
+		"Health":            {catType: "expense", icon: "💊", color: "#1ABC9C"},
+		"Education":         {catType: "expense", icon: "📚", color: "#3498DB"},
+		"Personal Care":     {catType: "expense", icon: "💇", color: "#E67E22"},
+		"Subscriptions":     {catType: "expense", icon: "📱", color: "#2980B9"},
+		"Gifts & Donations": {catType: "expense", icon: "🎁", color: "#E91E63"},
+		"Travel":            {catType: "expense", icon: "✈️", color: "#00BCD4"},
+		"Pets":              {catType: "expense", icon: "🐾", color: "#795548"},
+	}
+
+	for _, cat := range app.CatConfig.Categories {
+		def, ok := knownCategories[cat.Name]
+		if !ok {
+			// Unknown category from config - default to expense
+			def = catDef{catType: "expense", icon: "📌", color: "#95A5A6"}
+		}
+
+		_, err := app.DB.Exec(
+			`INSERT INTO categories (name, type, icon, color) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = ?)`,
+			cat.Name, def.catType, def.icon, def.color, cat.Name,
+		)
+		if err != nil {
+			log.Printf("Warning: Could not ensure category %q: %v", cat.Name, err)
+		}
+	}
+
+	// Also ensure the default category exists
+	if app.CatConfig.DefaultCategory != "" {
+		def, ok := knownCategories[app.CatConfig.DefaultCategory]
+		if !ok {
+			def = catDef{catType: "expense", icon: "📌", color: "#95A5A6"}
+		}
+		_, err := app.DB.Exec(
+			`INSERT INTO categories (name, type, icon, color) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = ?)`,
+			app.CatConfig.DefaultCategory, def.catType, def.icon, def.color, app.CatConfig.DefaultCategory,
+		)
+		if err != nil {
+			log.Printf("Warning: Could not ensure default category %q: %v", app.CatConfig.DefaultCategory, err)
+		}
+	}
 }
 
 func fileServer(r chi.Router, path string, root http.FileSystem) {

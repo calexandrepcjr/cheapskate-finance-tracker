@@ -4,14 +4,21 @@ import (
 	"testing"
 )
 
+// testCategoryConfig returns the built-in default config for testing
+func testCategoryConfig() *CategoryConfig {
+	return defaultCategoryConfig()
+}
+
 func TestParseTransaction(t *testing.T) {
+	catConfig := testCategoryConfig()
+
 	tests := []struct {
-		name        string
-		input       string
-		wantAmount  int64
-		wantDesc    string
-		wantCat     string
-		wantErr     bool
+		name       string
+		input      string
+		wantAmount int64
+		wantDesc   string
+		wantCat    string
+		wantErr    bool
 	}{
 		{
 			name:       "simple integer amount",
@@ -128,7 +135,7 @@ func TestParseTransaction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTransaction(tt.input)
+			got, err := ParseTransaction(tt.input, catConfig)
 
 			if tt.wantErr {
 				if err == nil {
@@ -233,6 +240,8 @@ func TestParseAmount(t *testing.T) {
 }
 
 func TestInferCategory(t *testing.T) {
+	catConfig := testCategoryConfig()
+
 	tests := []struct {
 		name  string
 		input string
@@ -260,9 +269,39 @@ func TestInferCategory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := inferCategory(tt.input)
+			got := catConfig.InferCategory(tt.input)
 			if got != tt.want {
-				t.Errorf("inferCategory(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("InferCategory(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInferCategoryWithCustomConfig(t *testing.T) {
+	customConfig := &CategoryConfig{
+		DefaultCategory: "Other",
+		Categories: []CategoryEntry{
+			{Name: "Drinks", Keywords: []string{"coffee", "tea", "soda"}},
+			{Name: "Work", Keywords: []string{"office", "meeting"}},
+		},
+	}
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "matches drinks", input: "morning coffee", want: "Drinks"},
+		{name: "matches work", input: "office supplies", want: "Work"},
+		{name: "falls back to default", input: "random thing", want: "Other"},
+		{name: "case insensitive", input: "COFFEE SHOP", want: "Drinks"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := customConfig.InferCategory(tt.input)
+			if got != tt.want {
+				t.Errorf("InferCategory(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
