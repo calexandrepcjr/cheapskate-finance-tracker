@@ -12,6 +12,7 @@ func (app *Application) setupRoutes(r chi.Router) {
 	r.Get("/api/transactions", app.HandleTransactionsPage)
 	r.Post("/api/transaction", app.HandleTransactionCreate)
 	r.Delete("/api/transaction/{id}", app.HandleTransactionDelete)
+	r.Post("/api/transaction/{id}/remove", app.HandleTransactionSoftDelete)
 	r.Get("/api/export/csv", app.HandleExportCSV)
 	r.Delete("/api/data", app.HandleWipeData)
 

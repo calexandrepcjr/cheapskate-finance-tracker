@@ -12,11 +12,38 @@ import (
 )
 
 const countAllTransactions = `-- name: CountAllTransactions :one
-SELECT COUNT(*) as count FROM transactions
+SELECT COUNT(*) as count FROM transactions WHERE deleted_at IS NULL
 `
 
 func (q *Queries) CountAllTransactions(ctx context.Context) (int64, error) {
 	row := q.queryRow(ctx, q.countAllTransactionsStmt, countAllTransactions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTransactionsByYear = `-- name: CountTransactionsByYear :one
+SELECT COUNT(*) as count
+FROM transactions t
+WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+AND t.deleted_at IS NULL
+`
+
+func (q *Queries) CountTransactionsByYear(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.queryRow(ctx, q.countTransactionsByYearStmt, countTransactionsByYear, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTransactionsByYearWithDeleted = `-- name: CountTransactionsByYearWithDeleted :one
+SELECT COUNT(*) as count
+FROM transactions t
+WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+`
+
+func (q *Queries) CountTransactionsByYearWithDeleted(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.queryRow(ctx, q.countTransactionsByYearWithDeletedStmt, countTransactionsByYearWithDeleted, dollar_1)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -28,7 +55,7 @@ INSERT INTO transactions (
 ) VALUES (
   ?, ?, ?, ?, ?, ?
 )
-RETURNING id, user_id, category_id, amount, currency, description, date, created_at
+RETURNING id, user_id, category_id, amount, currency, description, date, created_at, deleted_at
 `
 
 type CreateTransactionParams struct {
@@ -59,8 +86,33 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.Description,
 		&i.Date,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const deleteAllTransactions = `-- name: DeleteAllTransactions :exec
+DELETE FROM transactions
+`
+
+func (q *Queries) DeleteAllTransactions(ctx context.Context) error {
+	_, err := q.exec(ctx, q.deleteAllTransactionsStmt, deleteAllTransactions)
+	return err
+}
+
+const deleteTransaction = `-- name: DeleteTransaction :exec
+DELETE FROM transactions
+WHERE id = ? AND user_id = ?
+`
+
+type DeleteTransactionParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) DeleteTransaction(ctx context.Context, arg DeleteTransactionParams) error {
+	_, err := q.exec(ctx, q.deleteTransactionStmt, deleteTransaction, arg.ID, arg.UserID)
+	return err
 }
 
 const getCategoryByName = `-- name: GetCategoryByName :one
@@ -88,10 +140,10 @@ SELECT
     c.icon as category_icon,
     c.type as category_type,
     c.color as category_color,
-    CAST(COALESCE(SUM(t.amount), 0) AS INTEGER) as total_amount,
+    CAST(COALESCE(SUM(ABS(t.amount)), 0) AS INTEGER) as total_amount,
     COUNT(t.id) as transaction_count
 FROM categories c
-LEFT JOIN transactions t ON t.category_id = c.id AND strftime('%Y', t.date) = CAST(? AS TEXT)
+LEFT JOIN transactions t ON t.category_id = c.id AND strftime('%Y', t.date) = CAST(? AS TEXT) AND t.deleted_at IS NULL
 GROUP BY c.id, c.name, c.icon, c.type, c.color
 ORDER BY c.type, total_amount DESC
 `
@@ -140,6 +192,7 @@ func (q *Queries) GetCategoryTotalsByYear(ctx context.Context, dollar_1 string) 
 const getDistinctTransactionYears = `-- name: GetDistinctTransactionYears :many
 SELECT DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year
 FROM transactions
+WHERE deleted_at IS NULL
 ORDER BY year DESC
 `
 
@@ -170,10 +223,11 @@ const getMonthlyTotalsByYear = `-- name: GetMonthlyTotalsByYear :many
 SELECT
     CAST(strftime('%m', date) AS INTEGER) as month,
     c.type as category_type,
-    CAST(COALESCE(SUM(amount), 0) AS INTEGER) as total_amount
+    CAST(COALESCE(SUM(ABS(amount)), 0) AS INTEGER) as total_amount
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+AND t.deleted_at IS NULL
 GROUP BY month, c.type
 ORDER BY month
 `
@@ -224,6 +278,55 @@ func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
+const listAllTransactionsForExport = `-- name: ListAllTransactionsForExport :many
+SELECT t.id, t.amount, t.currency, t.description, t.date, c.name as category_name, c.type as category_type
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+WHERE t.deleted_at IS NULL
+ORDER BY t.date DESC
+`
+
+type ListAllTransactionsForExportRow struct {
+	ID           int64     `json:"id"`
+	Amount       int64     `json:"amount"`
+	Currency     string    `json:"currency"`
+	Description  string    `json:"description"`
+	Date         time.Time `json:"date"`
+	CategoryName string    `json:"category_name"`
+	CategoryType string    `json:"category_type"`
+}
+
+func (q *Queries) ListAllTransactionsForExport(ctx context.Context) ([]ListAllTransactionsForExportRow, error) {
+	rows, err := q.query(ctx, q.listAllTransactionsForExportStmt, listAllTransactionsForExport)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllTransactionsForExportRow
+	for rows.Next() {
+		var i ListAllTransactionsForExportRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Amount,
+			&i.Currency,
+			&i.Description,
+			&i.Date,
+			&i.CategoryName,
+			&i.CategoryType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCategories = `-- name: ListCategories :many
 SELECT id, name, type, icon, color FROM categories
 ORDER BY type, name
@@ -259,10 +362,11 @@ func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
 }
 
 const listRecentTransactions = `-- name: ListRecentTransactions :many
-SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, c.name as category_name, c.icon as category_icon, u.name as user_name
+SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, t.deleted_at, c.name as category_name, c.icon as category_icon, u.name as user_name
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
+WHERE t.deleted_at IS NULL
 ORDER BY t.date DESC
 LIMIT 20
 `
@@ -276,6 +380,7 @@ type ListRecentTransactionsRow struct {
 	Description  string         `json:"description"`
 	Date         time.Time      `json:"date"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
+	DeletedAt    sql.NullTime   `json:"deleted_at"`
 	CategoryName string         `json:"category_name"`
 	CategoryIcon sql.NullString `json:"category_icon"`
 	UserName     string         `json:"user_name"`
@@ -299,6 +404,7 @@ func (q *Queries) ListRecentTransactions(ctx context.Context) ([]ListRecentTrans
 			&i.Description,
 			&i.Date,
 			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.CategoryName,
 			&i.CategoryIcon,
 			&i.UserName,
@@ -317,11 +423,12 @@ func (q *Queries) ListRecentTransactions(ctx context.Context) ([]ListRecentTrans
 }
 
 const listTransactionsByYear = `-- name: ListTransactionsByYear :many
-SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, c.name as category_name, c.icon as category_icon, u.name as user_name
+SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, t.deleted_at, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
 WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+AND t.deleted_at IS NULL
 ORDER BY t.date DESC
 `
 
@@ -334,8 +441,10 @@ type ListTransactionsByYearRow struct {
 	Description  string         `json:"description"`
 	Date         time.Time      `json:"date"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
+	DeletedAt    sql.NullTime   `json:"deleted_at"`
 	CategoryName string         `json:"category_name"`
 	CategoryIcon sql.NullString `json:"category_icon"`
+	CategoryType string         `json:"category_type"`
 	UserName     string         `json:"user_name"`
 }
 
@@ -357,8 +466,10 @@ func (q *Queries) ListTransactionsByYear(ctx context.Context, dollar_1 string) (
 			&i.Description,
 			&i.Date,
 			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.CategoryName,
 			&i.CategoryIcon,
+			&i.CategoryType,
 			&i.UserName,
 		); err != nil {
 			return nil, err
@@ -374,25 +485,13 @@ func (q *Queries) ListTransactionsByYear(ctx context.Context, dollar_1 string) (
 	return items, nil
 }
 
-const countTransactionsByYear = `-- name: CountTransactionsByYear :one
-SELECT COUNT(*) as count
-FROM transactions t
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
-`
-
-func (q *Queries) CountTransactionsByYear(ctx context.Context, dollar_1 string) (int64, error) {
-	row := q.queryRow(ctx, q.countTransactionsByYearStmt, countTransactionsByYear, dollar_1)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const listTransactionsByYearPaginated = `-- name: ListTransactionsByYearPaginated :many
-SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
+SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, t.deleted_at, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
 WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+AND t.deleted_at IS NULL
 ORDER BY t.date DESC
 LIMIT ? OFFSET ?
 `
@@ -412,6 +511,7 @@ type ListTransactionsByYearPaginatedRow struct {
 	Description  string         `json:"description"`
 	Date         time.Time      `json:"date"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
+	DeletedAt    sql.NullTime   `json:"deleted_at"`
 	CategoryName string         `json:"category_name"`
 	CategoryIcon sql.NullString `json:"category_icon"`
 	CategoryType string         `json:"category_type"`
@@ -436,6 +536,76 @@ func (q *Queries) ListTransactionsByYearPaginated(ctx context.Context, arg ListT
 			&i.Description,
 			&i.Date,
 			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.CategoryName,
+			&i.CategoryIcon,
+			&i.CategoryType,
+			&i.UserName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTransactionsByYearPaginatedWithDeleted = `-- name: ListTransactionsByYearPaginatedWithDeleted :many
+SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, t.deleted_at, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+JOIN users u ON t.user_id = u.id
+WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+ORDER BY t.date DESC
+LIMIT ? OFFSET ?
+`
+
+type ListTransactionsByYearPaginatedWithDeletedParams struct {
+	Year   string
+	Limit  int64
+	Offset int64
+}
+
+type ListTransactionsByYearPaginatedWithDeletedRow struct {
+	ID           int64          `json:"id"`
+	UserID       int64          `json:"user_id"`
+	CategoryID   int64          `json:"category_id"`
+	Amount       int64          `json:"amount"`
+	Currency     string         `json:"currency"`
+	Description  string         `json:"description"`
+	Date         time.Time      `json:"date"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	DeletedAt    sql.NullTime   `json:"deleted_at"`
+	CategoryName string         `json:"category_name"`
+	CategoryIcon sql.NullString `json:"category_icon"`
+	CategoryType string         `json:"category_type"`
+	UserName     string         `json:"user_name"`
+}
+
+func (q *Queries) ListTransactionsByYearPaginatedWithDeleted(ctx context.Context, arg ListTransactionsByYearPaginatedWithDeletedParams) ([]ListTransactionsByYearPaginatedWithDeletedRow, error) {
+	rows, err := q.query(ctx, q.listTransactionsByYearPaginatedWithDeletedStmt, listTransactionsByYearPaginatedWithDeleted, arg.Year, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTransactionsByYearPaginatedWithDeletedRow
+	for rows.Next() {
+		var i ListTransactionsByYearPaginatedWithDeletedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CategoryID,
+			&i.Amount,
+			&i.Currency,
+			&i.Description,
+			&i.Date,
+			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.CategoryName,
 			&i.CategoryIcon,
 			&i.CategoryType,
@@ -487,55 +657,78 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
-const deleteTransaction = `-- name: DeleteTransaction :exec
-DELETE FROM transactions
+const restoreTransaction = `-- name: RestoreTransaction :exec
+UPDATE transactions
+SET deleted_at = NULL
 WHERE id = ? AND user_id = ?
 `
 
-type DeleteTransactionParams struct {
+type RestoreTransactionParams struct {
 	ID     int64 `json:"id"`
 	UserID int64 `json:"user_id"`
 }
 
-func (q *Queries) DeleteTransaction(ctx context.Context, arg DeleteTransactionParams) error {
-	_, err := q.exec(ctx, q.deleteTransactionStmt, deleteTransaction, arg.ID, arg.UserID)
+func (q *Queries) RestoreTransaction(ctx context.Context, arg RestoreTransactionParams) error {
+	_, err := q.exec(ctx, q.restoreTransactionStmt, restoreTransaction, arg.ID, arg.UserID)
 	return err
 }
 
-const listAllTransactionsForExport = `-- name: ListAllTransactionsForExport :many
-SELECT t.id, t.amount, t.currency, t.description, t.date, c.name as category_name, c.type as category_type
+const searchTransactionsForRemoval = `-- name: SearchTransactionsForRemoval :many
+SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.date, t.created_at, t.deleted_at, c.name as category_name, c.icon as category_icon, c.type as category_type, u.name as user_name
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
+JOIN users u ON t.user_id = u.id
+WHERE ABS(t.amount) = ?
+AND t.deleted_at IS NULL
+AND t.user_id = ?
 ORDER BY t.date DESC
+LIMIT 10
 `
 
-type ListAllTransactionsForExportRow struct {
-	ID           int64     `json:"id"`
-	Amount       int64     `json:"amount"`
-	Currency     string    `json:"currency"`
-	Description  string    `json:"description"`
-	Date         time.Time `json:"date"`
-	CategoryName string    `json:"category_name"`
-	CategoryType string    `json:"category_type"`
+type SearchTransactionsForRemovalParams struct {
+	Amount int64 `json:"amount"`
+	UserID int64 `json:"user_id"`
 }
 
-func (q *Queries) ListAllTransactionsForExport(ctx context.Context) ([]ListAllTransactionsForExportRow, error) {
-	rows, err := q.query(ctx, q.listAllTransactionsForExportStmt, listAllTransactionsForExport)
+type SearchTransactionsForRemovalRow struct {
+	ID           int64          `json:"id"`
+	UserID       int64          `json:"user_id"`
+	CategoryID   int64          `json:"category_id"`
+	Amount       int64          `json:"amount"`
+	Currency     string         `json:"currency"`
+	Description  string         `json:"description"`
+	Date         time.Time      `json:"date"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	DeletedAt    sql.NullTime   `json:"deleted_at"`
+	CategoryName string         `json:"category_name"`
+	CategoryIcon sql.NullString `json:"category_icon"`
+	CategoryType string         `json:"category_type"`
+	UserName     string         `json:"user_name"`
+}
+
+func (q *Queries) SearchTransactionsForRemoval(ctx context.Context, arg SearchTransactionsForRemovalParams) ([]SearchTransactionsForRemovalRow, error) {
+	rows, err := q.query(ctx, q.searchTransactionsForRemovalStmt, searchTransactionsForRemoval, arg.Amount, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAllTransactionsForExportRow
+	var items []SearchTransactionsForRemovalRow
 	for rows.Next() {
-		var i ListAllTransactionsForExportRow
+		var i SearchTransactionsForRemovalRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.UserID,
+			&i.CategoryID,
 			&i.Amount,
 			&i.Currency,
 			&i.Description,
 			&i.Date,
+			&i.CreatedAt,
+			&i.DeletedAt,
 			&i.CategoryName,
+			&i.CategoryIcon,
 			&i.CategoryType,
+			&i.UserName,
 		); err != nil {
 			return nil, err
 		}
@@ -550,11 +743,18 @@ func (q *Queries) ListAllTransactionsForExport(ctx context.Context) ([]ListAllTr
 	return items, nil
 }
 
-const deleteAllTransactions = `-- name: DeleteAllTransactions :exec
-DELETE FROM transactions
+const softDeleteTransaction = `-- name: SoftDeleteTransaction :exec
+UPDATE transactions
+SET deleted_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_id = ? AND deleted_at IS NULL
 `
 
-func (q *Queries) DeleteAllTransactions(ctx context.Context) error {
-	_, err := q.exec(ctx, q.deleteAllTransactionsStmt, deleteAllTransactions)
+type SoftDeleteTransactionParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) SoftDeleteTransaction(ctx context.Context, arg SoftDeleteTransactionParams) error {
+	_, err := q.exec(ctx, q.softDeleteTransactionStmt, softDeleteTransaction, arg.ID, arg.UserID)
 	return err
 }

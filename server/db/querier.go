@@ -10,6 +10,8 @@ import (
 
 type Querier interface {
 	CountAllTransactions(ctx context.Context) (int64, error)
+	CountTransactionsByYear(ctx context.Context, dollar_1 string) (int64, error)
+	CountTransactionsByYearWithDeleted(ctx context.Context, dollar_1 string) (int64, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
 	DeleteAllTransactions(ctx context.Context) error
 	DeleteTransaction(ctx context.Context, arg DeleteTransactionParams) error
@@ -22,7 +24,12 @@ type Querier interface {
 	ListCategories(ctx context.Context) ([]Category, error)
 	ListRecentTransactions(ctx context.Context) ([]ListRecentTransactionsRow, error)
 	ListTransactionsByYear(ctx context.Context, dollar_1 string) ([]ListTransactionsByYearRow, error)
+	ListTransactionsByYearPaginated(ctx context.Context, arg ListTransactionsByYearPaginatedParams) ([]ListTransactionsByYearPaginatedRow, error)
+	ListTransactionsByYearPaginatedWithDeleted(ctx context.Context, arg ListTransactionsByYearPaginatedWithDeletedParams) ([]ListTransactionsByYearPaginatedWithDeletedRow, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	RestoreTransaction(ctx context.Context, arg RestoreTransactionParams) error
+	SearchTransactionsForRemoval(ctx context.Context, arg SearchTransactionsForRemovalParams) ([]SearchTransactionsForRemovalRow, error)
+	SoftDeleteTransaction(ctx context.Context, arg SoftDeleteTransactionParams) error
 }
 
 var _ Querier = (*Queries)(nil)

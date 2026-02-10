@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/client/templates"
@@ -27,6 +28,9 @@ func (app *Application) HandleDashboard(w http.ResponseWriter, r *http.Request) 
 		yearParam = fmt.Sprintf("%d", time.Now().Year())
 	}
 
+	// Check if we should show deleted transactions
+	showDeleted := r.URL.Query().Get("show_deleted") == "true"
+
 	// Get available years for navigation
 	years, err := app.Q.GetDistinctTransactionYearsWrapped(ctx)
 	if err != nil {
@@ -47,7 +51,50 @@ func (app *Application) HandleDashboard(w http.ResponseWriter, r *http.Request) 
 		years = append([]db.GetDistinctTransactionYearsRow{{Year: currentYear}}, years...)
 	}
 
-	// Fetch first page of transactions
+	var totalCount int64
+
+	if showDeleted {
+		// Fetch with deleted transactions included
+		txsWithDeleted, err := app.Q.ListTransactionsByYearPaginatedWithDeleted(ctx, db.ListTransactionsByYearPaginatedWithDeletedParams{
+			Year:   yearParam,
+			Limit:  transactionsPageSize,
+			Offset: 0,
+		})
+		if err != nil {
+			http.Error(w, "Failed to load transactions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		totalCount, err = app.Q.CountTransactionsByYearWithDeleted(ctx, yearParam)
+		if err != nil {
+			http.Error(w, "Failed to count transactions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		categoryTotals, err := app.Q.GetCategoryTotalsByYear(ctx, yearParam)
+		if err != nil {
+			http.Error(w, "Failed to load category totals: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Convert WithDeleted rows to standard paginated rows for template reuse
+		txs := make([]db.ListTransactionsByYearPaginatedRow, len(txsWithDeleted))
+		for i, t := range txsWithDeleted {
+			txs[i] = db.ListTransactionsByYearPaginatedRow{
+				ID: t.ID, UserID: t.UserID, CategoryID: t.CategoryID,
+				Amount: t.Amount, Currency: t.Currency, Description: t.Description,
+				Date: t.Date, CreatedAt: t.CreatedAt, DeletedAt: t.DeletedAt,
+				CategoryName: t.CategoryName, CategoryIcon: t.CategoryIcon,
+				CategoryType: t.CategoryType, UserName: t.UserName,
+			}
+		}
+
+		hasMore := int64(len(txs)) < totalCount
+		templates.Dashboard(txs, categoryTotals, years, yearParam, totalCount, hasMore, showDeleted).Render(ctx, w)
+		return
+	}
+
+	// Fetch first page of transactions (active only)
 	txs, err := app.Q.ListTransactionsByYearPaginated(ctx, db.ListTransactionsByYearPaginatedParams{
 		Year:   yearParam,
 		Limit:  transactionsPageSize,
@@ -59,7 +106,7 @@ func (app *Application) HandleDashboard(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get total count for pagination
-	totalCount, err := app.Q.CountTransactionsByYear(ctx, yearParam)
+	totalCount, err = app.Q.CountTransactionsByYear(ctx, yearParam)
 	if err != nil {
 		http.Error(w, "Failed to count transactions: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -74,7 +121,7 @@ func (app *Application) HandleDashboard(w http.ResponseWriter, r *http.Request) 
 
 	hasMore := int64(len(txs)) < totalCount
 
-	templates.Dashboard(txs, categoryTotals, years, yearParam, totalCount, hasMore).Render(ctx, w)
+	templates.Dashboard(txs, categoryTotals, years, yearParam, totalCount, hasMore, showDeleted).Render(ctx, w)
 }
 
 func (app *Application) HandleTransactionsPage(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +208,12 @@ func (app *Application) HandleDashboardDetailed(w http.ResponseWriter, r *http.R
 func (app *Application) HandleTransactionCreate(w http.ResponseWriter, r *http.Request) {
 	input := r.FormValue("input")
 
+	// Check if this is a remove command
+	if IsRemoveCommand(input) {
+		app.handleRemoveSearch(w, r, input)
+		return
+	}
+
 	// 1. Parse
 	parsed, err := ParseTransaction(input, app.CatConfig)
 	if err != nil {
@@ -246,8 +299,8 @@ func (app *Application) HandleTransactionDelete(w http.ResponseWriter, r *http.R
 	// User ID (hardcoded for single user MVP)
 	userID := int64(1)
 
-	// Delete transaction
-	err = app.Q.DeleteTransaction(ctx, db.DeleteTransactionParams{
+	// Soft delete transaction
+	err = app.Q.SoftDeleteTransaction(ctx, db.SoftDeleteTransactionParams{
 		ID:     id,
 		UserID: userID,
 	})
@@ -258,6 +311,72 @@ func (app *Application) HandleTransactionDelete(w http.ResponseWriter, r *http.R
 
 	// Return empty response for HTMX to remove the element
 	w.WriteHeader(http.StatusOK)
+}
+
+func (app *Application) handleRemoveSearch(w http.ResponseWriter, r *http.Request, input string) {
+	ctx := r.Context()
+
+	parsed, err := ParseRemoveCommand(input)
+	if err != nil {
+		templates.TransactionError("Could not understand that. Try 'remove 50' or 'remove 50 pizza'").Render(ctx, w)
+		return
+	}
+
+	userID := int64(1)
+
+	// Search for matching transactions by amount
+	txs, err := app.Q.SearchTransactionsForRemoval(ctx, db.SearchTransactionsForRemovalParams{
+		Amount: parsed.Amount,
+		UserID: userID,
+	})
+	if err != nil {
+		templates.TransactionError("Failed to search transactions: "+err.Error()).Render(ctx, w)
+		return
+	}
+
+	// Filter by description if provided
+	if parsed.Description != "" {
+		var filtered []db.SearchTransactionsForRemovalRow
+		descLower := strings.ToLower(parsed.Description)
+		for _, tx := range txs {
+			if strings.Contains(strings.ToLower(tx.Description), descLower) ||
+				strings.Contains(strings.ToLower(tx.CategoryName), descLower) {
+				filtered = append(filtered, tx)
+			}
+		}
+		txs = filtered
+	}
+
+	if len(txs) == 0 {
+		templates.TransactionError("No matching transactions found for "+formatMoney(parsed.Amount)).Render(ctx, w)
+		return
+	}
+
+	templates.RemoveCandidates(txs, formatMoney(parsed.Amount)).Render(ctx, w)
+}
+
+func (app *Application) HandleTransactionSoftDelete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid transaction ID", http.StatusBadRequest)
+		return
+	}
+
+	userID := int64(1)
+
+	err = app.Q.SoftDeleteTransaction(ctx, db.SoftDeleteTransactionParams{
+		ID:     id,
+		UserID: userID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to remove transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	templates.TransactionRemoved().Render(ctx, w)
 }
 
 func formatMoney(cents int64) string {
