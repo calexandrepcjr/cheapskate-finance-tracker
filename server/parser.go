@@ -18,7 +18,7 @@ var (
 	reSimple = regexp.MustCompile(`^(\d+(?:\.\d{1,2})?)\s+(.+)$`)
 )
 
-func ParseTransaction(input string) (ParsedTransaction, error) {
+func ParseTransaction(input string, catConfig *CategoryConfig) (ParsedTransaction, error) {
 	input = strings.TrimSpace(input)
 
 	// Try Regex First
@@ -34,7 +34,7 @@ func ParseTransaction(input string) (ParsedTransaction, error) {
 		return ParsedTransaction{
 			Amount:      amount,
 			Description: strings.TrimSpace(desc),
-			Category:    inferCategory(desc), // Simple keyword matching for now
+			Category:    catConfig.InferCategory(desc),
 		}, nil
 	}
 
@@ -51,40 +51,3 @@ func parseAmount(s string) (int64, error) {
 	return int64(f * 100), nil
 }
 
-func inferCategory(desc string) string {
-	desc = strings.ToLower(desc)
-
-	// Income keywords - check first
-	incomeKeywords := []string{"salary", "paycheck", "income", "wage", "bonus", "freelance", "dividend", "interest", "refund"}
-	for _, kw := range incomeKeywords {
-		if strings.Contains(desc, kw) {
-			return "Earned Income"
-		}
-	}
-
-	// Food keywords
-	foodKeywords := []string{"pizza", "food", "burger", "grocery", "groceries", "restaurant", "lunch", "dinner", "breakfast", "coffee", "cafe", "snack", "meal", "takeout", "delivery", "doordash", "ubereats", "grubhub"}
-	for _, kw := range foodKeywords {
-		if strings.Contains(desc, kw) {
-			return "Food"
-		}
-	}
-
-	// Transport keywords
-	transportKeywords := []string{"taxi", "uber", "bus", "gas", "fuel", "lyft", "metro", "subway", "train", "parking", "toll", "car", "auto", "vehicle", "flight", "airline", "ticket"}
-	for _, kw := range transportKeywords {
-		if strings.Contains(desc, kw) {
-			return "Transport"
-		}
-	}
-
-	// Housing keywords (explicit match before defaulting)
-	housingKeywords := []string{"rent", "mortgage", "electricity", "electric", "water", "internet", "wifi", "cable", "phone", "utility", "utilities", "insurance", "maintenance", "repair", "furniture", "appliance"}
-	for _, kw := range housingKeywords {
-		if strings.Contains(desc, kw) {
-			return "Housing"
-		}
-	}
-
-	return "Housing" // Default fallback for unrecognized expenses
-}
