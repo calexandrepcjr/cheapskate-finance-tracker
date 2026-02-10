@@ -26,6 +26,7 @@ type Transaction struct {
 	Description string       `json:"description"`
 	Date        time.Time    `json:"date"`
 	CreatedAt   sql.NullTime `json:"created_at"`
+	DeletedAt   sql.NullTime `json:"deleted_at"`
 }
 
 type User struct {

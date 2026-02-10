@@ -331,6 +331,76 @@ func TestFormatMoney(t *testing.T) {
 	}
 }
 
+func TestIsRemoveCommand(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "simple remove", input: "remove 50", want: true},
+		{name: "remove with decimal", input: "remove 50.50", want: true},
+		{name: "remove with description", input: "remove 50 pizza", want: true},
+		{name: "remove case insensitive", input: "Remove 100", want: true},
+		{name: "REMOVE uppercase", input: "REMOVE 25 taxi", want: true},
+		{name: "not a remove command", input: "50 pizza", want: false},
+		{name: "remove without amount", input: "remove pizza", want: false},
+		{name: "empty string", input: "", want: false},
+		{name: "just remove", input: "remove", want: false},
+		{name: "remove with spaces", input: "  remove 50  ", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsRemoveCommand(tt.input)
+			if got != tt.want {
+				t.Errorf("IsRemoveCommand(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseRemoveCommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantAmt  int64
+		wantDesc string
+		wantErr  bool
+	}{
+		{name: "remove with integer amount", input: "remove 50", wantAmt: 5000, wantDesc: ""},
+		{name: "remove with decimal amount", input: "remove 12.50", wantAmt: 1250, wantDesc: ""},
+		{name: "remove with description", input: "remove 50 pizza", wantAmt: 5000, wantDesc: "pizza"},
+		{name: "remove with multi-word description", input: "remove 25 taxi to work", wantAmt: 2500, wantDesc: "taxi to work"},
+		{name: "case insensitive", input: "REMOVE 100 groceries", wantAmt: 10000, wantDesc: "groceries"},
+		{name: "leading/trailing spaces", input: "  remove 30 coffee  ", wantAmt: 3000, wantDesc: "coffee"},
+		{name: "not a remove command", input: "50 pizza", wantErr: true},
+		{name: "empty string", input: "", wantErr: true},
+		{name: "remove without amount", input: "remove pizza", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseRemoveCommand(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ParseRemoveCommand(%q) expected error, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("ParseRemoveCommand(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+			if got.Amount != tt.wantAmt {
+				t.Errorf("ParseRemoveCommand(%q).Amount = %d, want %d", tt.input, got.Amount, tt.wantAmt)
+			}
+			if got.Description != tt.wantDesc {
+				t.Errorf("ParseRemoveCommand(%q).Description = %q, want %q", tt.input, got.Description, tt.wantDesc)
+			}
+		})
+	}
+}
+
 func TestFormatFloat(t *testing.T) {
 	tests := []struct {
 		name  string

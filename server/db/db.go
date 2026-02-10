@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.countTransactionsByYearStmt, err = db.PrepareContext(ctx, countTransactionsByYear); err != nil {
 		return nil, fmt.Errorf("error preparing query CountTransactionsByYear: %w", err)
 	}
+	if q.countTransactionsByYearWithDeletedStmt, err = db.PrepareContext(ctx, countTransactionsByYearWithDeleted); err != nil {
+		return nil, fmt.Errorf("error preparing query CountTransactionsByYearWithDeleted: %w", err)
+	}
 	if q.createTransactionStmt, err = db.PrepareContext(ctx, createTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTransaction: %w", err)
 	}
@@ -69,8 +72,20 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listTransactionsByYearPaginatedStmt, err = db.PrepareContext(ctx, listTransactionsByYearPaginated); err != nil {
 		return nil, fmt.Errorf("error preparing query ListTransactionsByYearPaginated: %w", err)
 	}
+	if q.listTransactionsByYearPaginatedWithDeletedStmt, err = db.PrepareContext(ctx, listTransactionsByYearPaginatedWithDeleted); err != nil {
+		return nil, fmt.Errorf("error preparing query ListTransactionsByYearPaginatedWithDeleted: %w", err)
+	}
 	if q.listUsersStmt, err = db.PrepareContext(ctx, listUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListUsers: %w", err)
+	}
+	if q.restoreTransactionStmt, err = db.PrepareContext(ctx, restoreTransaction); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreTransaction: %w", err)
+	}
+	if q.searchTransactionsForRemovalStmt, err = db.PrepareContext(ctx, searchTransactionsForRemoval); err != nil {
+		return nil, fmt.Errorf("error preparing query SearchTransactionsForRemoval: %w", err)
+	}
+	if q.softDeleteTransactionStmt, err = db.PrepareContext(ctx, softDeleteTransaction); err != nil {
+		return nil, fmt.Errorf("error preparing query SoftDeleteTransaction: %w", err)
 	}
 	return &q, nil
 }
@@ -85,6 +100,11 @@ func (q *Queries) Close() error {
 	if q.countTransactionsByYearStmt != nil {
 		if cerr := q.countTransactionsByYearStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countTransactionsByYearStmt: %w", cerr)
+		}
+	}
+	if q.countTransactionsByYearWithDeletedStmt != nil {
+		if cerr := q.countTransactionsByYearWithDeletedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countTransactionsByYearWithDeletedStmt: %w", cerr)
 		}
 	}
 	if q.createTransactionStmt != nil {
@@ -152,9 +172,29 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listTransactionsByYearPaginatedStmt: %w", cerr)
 		}
 	}
+	if q.listTransactionsByYearPaginatedWithDeletedStmt != nil {
+		if cerr := q.listTransactionsByYearPaginatedWithDeletedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listTransactionsByYearPaginatedWithDeletedStmt: %w", cerr)
+		}
+	}
 	if q.listUsersStmt != nil {
 		if cerr := q.listUsersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listUsersStmt: %w", cerr)
+		}
+	}
+	if q.restoreTransactionStmt != nil {
+		if cerr := q.restoreTransactionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreTransactionStmt: %w", cerr)
+		}
+	}
+	if q.searchTransactionsForRemovalStmt != nil {
+		if cerr := q.searchTransactionsForRemovalStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing searchTransactionsForRemovalStmt: %w", cerr)
+		}
+	}
+	if q.softDeleteTransactionStmt != nil {
+		if cerr := q.softDeleteTransactionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing softDeleteTransactionStmt: %w", cerr)
 		}
 	}
 	return err
@@ -194,45 +234,55 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                                  DBTX
-	tx                                  *sql.Tx
-	countAllTransactionsStmt            *sql.Stmt
-	countTransactionsByYearStmt         *sql.Stmt
-	createTransactionStmt               *sql.Stmt
-	deleteAllTransactionsStmt           *sql.Stmt
-	deleteTransactionStmt               *sql.Stmt
-	getCategoryByNameStmt               *sql.Stmt
-	getCategoryTotalsByYearStmt         *sql.Stmt
-	getDistinctTransactionYearsStmt     *sql.Stmt
-	getMonthlyTotalsByYearStmt          *sql.Stmt
-	getUserStmt                         *sql.Stmt
-	listAllTransactionsForExportStmt    *sql.Stmt
-	listCategoriesStmt                  *sql.Stmt
-	listRecentTransactionsStmt          *sql.Stmt
-	listTransactionsByYearStmt          *sql.Stmt
-	listTransactionsByYearPaginatedStmt *sql.Stmt
-	listUsersStmt                       *sql.Stmt
+	db                                              DBTX
+	tx                                              *sql.Tx
+	countAllTransactionsStmt                        *sql.Stmt
+	countTransactionsByYearStmt                     *sql.Stmt
+	countTransactionsByYearWithDeletedStmt          *sql.Stmt
+	createTransactionStmt                           *sql.Stmt
+	deleteAllTransactionsStmt                       *sql.Stmt
+	deleteTransactionStmt                           *sql.Stmt
+	getCategoryByNameStmt                           *sql.Stmt
+	getCategoryTotalsByYearStmt                     *sql.Stmt
+	getDistinctTransactionYearsStmt                 *sql.Stmt
+	getMonthlyTotalsByYearStmt                      *sql.Stmt
+	getUserStmt                                     *sql.Stmt
+	listAllTransactionsForExportStmt                *sql.Stmt
+	listCategoriesStmt                              *sql.Stmt
+	listRecentTransactionsStmt                      *sql.Stmt
+	listTransactionsByYearStmt                      *sql.Stmt
+	listTransactionsByYearPaginatedStmt             *sql.Stmt
+	listTransactionsByYearPaginatedWithDeletedStmt  *sql.Stmt
+	listUsersStmt                                   *sql.Stmt
+	restoreTransactionStmt                          *sql.Stmt
+	searchTransactionsForRemovalStmt                *sql.Stmt
+	softDeleteTransactionStmt                       *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                                  tx,
-		tx:                                  tx,
-		countAllTransactionsStmt:            q.countAllTransactionsStmt,
-		countTransactionsByYearStmt:         q.countTransactionsByYearStmt,
-		createTransactionStmt:               q.createTransactionStmt,
-		deleteAllTransactionsStmt:           q.deleteAllTransactionsStmt,
-		deleteTransactionStmt:               q.deleteTransactionStmt,
-		getCategoryByNameStmt:               q.getCategoryByNameStmt,
-		getCategoryTotalsByYearStmt:         q.getCategoryTotalsByYearStmt,
-		getDistinctTransactionYearsStmt:     q.getDistinctTransactionYearsStmt,
-		getMonthlyTotalsByYearStmt:          q.getMonthlyTotalsByYearStmt,
-		getUserStmt:                         q.getUserStmt,
-		listAllTransactionsForExportStmt:    q.listAllTransactionsForExportStmt,
-		listCategoriesStmt:                  q.listCategoriesStmt,
-		listRecentTransactionsStmt:          q.listRecentTransactionsStmt,
-		listTransactionsByYearStmt:          q.listTransactionsByYearStmt,
-		listTransactionsByYearPaginatedStmt: q.listTransactionsByYearPaginatedStmt,
-		listUsersStmt:                       q.listUsersStmt,
+		db:                                              tx,
+		tx:                                              tx,
+		countAllTransactionsStmt:                        q.countAllTransactionsStmt,
+		countTransactionsByYearStmt:                     q.countTransactionsByYearStmt,
+		countTransactionsByYearWithDeletedStmt:          q.countTransactionsByYearWithDeletedStmt,
+		createTransactionStmt:                           q.createTransactionStmt,
+		deleteAllTransactionsStmt:                       q.deleteAllTransactionsStmt,
+		deleteTransactionStmt:                           q.deleteTransactionStmt,
+		getCategoryByNameStmt:                           q.getCategoryByNameStmt,
+		getCategoryTotalsByYearStmt:                     q.getCategoryTotalsByYearStmt,
+		getDistinctTransactionYearsStmt:                 q.getDistinctTransactionYearsStmt,
+		getMonthlyTotalsByYearStmt:                      q.getMonthlyTotalsByYearStmt,
+		getUserStmt:                                     q.getUserStmt,
+		listAllTransactionsForExportStmt:                q.listAllTransactionsForExportStmt,
+		listCategoriesStmt:                              q.listCategoriesStmt,
+		listRecentTransactionsStmt:                      q.listRecentTransactionsStmt,
+		listTransactionsByYearStmt:                      q.listTransactionsByYearStmt,
+		listTransactionsByYearPaginatedStmt:             q.listTransactionsByYearPaginatedStmt,
+		listTransactionsByYearPaginatedWithDeletedStmt:  q.listTransactionsByYearPaginatedWithDeletedStmt,
+		listUsersStmt:                                   q.listUsersStmt,
+		restoreTransactionStmt:                          q.restoreTransactionStmt,
+		searchTransactionsForRemovalStmt:                q.searchTransactionsForRemovalStmt,
+		softDeleteTransactionStmt:                       q.softDeleteTransactionStmt,
 	}
 }

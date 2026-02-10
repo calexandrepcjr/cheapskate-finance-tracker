@@ -115,6 +115,13 @@ func (app *Application) ensureSeed() error {
 		}
 	}
 
+	// Add deleted_at column if it doesn't exist (migration for soft delete)
+	_, err = app.DB.Exec(`ALTER TABLE transactions ADD COLUMN deleted_at DATETIME DEFAULT NULL`)
+	if err != nil {
+		// Column likely already exists, ignore error
+		log.Printf("Schema migration (deleted_at): %v", err)
+	}
+
 	// Ensure income categories have correct type (fixes old databases with Salary as expense)
 	_, err = app.DB.Exec(`UPDATE categories SET type = 'income' WHERE name IN ('Salary', 'Earned Income') AND type != 'income'`)
 	if err != nil {

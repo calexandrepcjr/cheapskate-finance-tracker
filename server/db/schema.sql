@@ -22,6 +22,7 @@ CREATE TABLE transactions (
   description TEXT NOT NULL,
   date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME DEFAULT NULL, -- Soft delete timestamp
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (category_id) REFERENCES categories(id)
 );

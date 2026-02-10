@@ -50,6 +50,7 @@ func setupTestDB(t *testing.T) (*db.Queries, func()) {
 			description TEXT NOT NULL,
 			date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			deleted_at DATETIME DEFAULT NULL,
 			FOREIGN KEY (user_id) REFERENCES users(id),
 			FOREIGN KEY (category_id) REFERENCES categories(id)
 		);
@@ -884,6 +885,121 @@ func TestGetMonthlyTotalsByYear(t *testing.T) {
 
 		if len(totals) != 0 {
 			t.Errorf("Expected 0 entries for 2020, got %d", len(totals))
+		}
+	})
+}
+
+func TestSoftDeleteTransaction(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Create a transaction
+	tx, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      -2500,
+		Currency:    "USD",
+		Description: "test pizza",
+		Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	t.Run("soft deletes transaction", func(t *testing.T) {
+		err := queries.SoftDeleteTransaction(ctx, db.SoftDeleteTransactionParams{
+			ID:     tx.ID,
+			UserID: 1,
+		})
+		if err != nil {
+			t.Fatalf("SoftDeleteTransaction() error = %v", err)
+		}
+
+		// Should not appear in active listing
+		active, err := queries.ListRecentTransactions(ctx)
+		if err != nil {
+			t.Fatalf("ListRecentTransactions() error = %v", err)
+		}
+		for _, a := range active {
+			if a.ID == tx.ID {
+				t.Error("Soft-deleted transaction should not appear in active listing")
+			}
+		}
+
+		// Should not be counted
+		count, err := queries.CountAllTransactions(ctx)
+		if err != nil {
+			t.Fatalf("CountAllTransactions() error = %v", err)
+		}
+		if count != 0 {
+			t.Errorf("CountAllTransactions() = %d, want 0 (soft-deleted)", count)
+		}
+	})
+
+	t.Run("does not soft delete already deleted transaction", func(t *testing.T) {
+		// Should not error but has no effect
+		err := queries.SoftDeleteTransaction(ctx, db.SoftDeleteTransactionParams{
+			ID:     tx.ID,
+			UserID: 1,
+		})
+		if err != nil {
+			t.Fatalf("SoftDeleteTransaction() on already deleted = %v", err)
+		}
+	})
+}
+
+func TestSearchTransactionsForRemoval(t *testing.T) {
+	queries, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Create transactions with same amount
+	_, err := queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID: 1, CategoryID: 1, Amount: -2500, Currency: "USD",
+		Description: "pizza lunch", Date: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID: 1, CategoryID: 2, Amount: -2500, Currency: "USD",
+		Description: "bus ride", Date: time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+	_, err = queries.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID: 1, CategoryID: 1, Amount: -5000, Currency: "USD",
+		Description: "groceries", Date: time.Date(2026, 1, 17, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	t.Run("finds matching transactions by amount", func(t *testing.T) {
+		results, err := queries.SearchTransactionsForRemoval(ctx, db.SearchTransactionsForRemovalParams{
+			Amount: 2500,
+			UserID: 1,
+		})
+		if err != nil {
+			t.Fatalf("SearchTransactionsForRemoval() error = %v", err)
+		}
+		if len(results) != 2 {
+			t.Errorf("Expected 2 matching transactions, got %d", len(results))
+		}
+	})
+
+	t.Run("returns empty for non-matching amount", func(t *testing.T) {
+		results, err := queries.SearchTransactionsForRemoval(ctx, db.SearchTransactionsForRemovalParams{
+			Amount: 9999,
+			UserID: 1,
+		})
+		if err != nil {
+			t.Fatalf("SearchTransactionsForRemoval() error = %v", err)
+		}
+		if len(results) != 0 {
+			t.Errorf("Expected 0 matching transactions, got %d", len(results))
 		}
 	})
 }

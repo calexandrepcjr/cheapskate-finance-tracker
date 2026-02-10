@@ -53,6 +53,7 @@ func setupTestApp(t *testing.T) *Application {
 			description TEXT NOT NULL,
 			date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			deleted_at DATETIME DEFAULT NULL,
 			FOREIGN KEY (user_id) REFERENCES users(id),
 			FOREIGN KEY (category_id) REFERENCES categories(id)
 		);
@@ -1225,4 +1226,176 @@ func TestHandleTransactionCreate_AmountConversion(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleTransactionDelete_SoftDelete(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+
+	// Create a transaction
+	tx, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      -2500,
+		Currency:    "USD",
+		Description: "test pizza",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	// Soft delete it via the handler (DELETE /api/transaction/{id})
+	req := httptest.NewRequest(http.MethodDelete, "/api/transaction/"+strconv.FormatInt(tx.ID, 10), nil)
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", strconv.FormatInt(tx.ID, 10))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	app.HandleTransactionDelete(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleTransactionDelete() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	// Verify transaction is soft deleted (not in active list)
+	active, err := app.Q.ListRecentTransactions(ctx)
+	if err != nil {
+		t.Fatalf("ListRecentTransactions() error = %v", err)
+	}
+	for _, a := range active {
+		if a.ID == tx.ID {
+			t.Error("Soft-deleted transaction should not appear in active listing")
+		}
+	}
+
+	// Verify it still exists in the DB (not hard deleted)
+	count, err := app.Q.CountTransactionsByYearWithDeleted(ctx, fmt.Sprintf("%d", time.Now().Year()))
+	if err != nil {
+		t.Fatalf("CountTransactionsByYearWithDeleted() error = %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Transaction should still exist in DB (soft deleted), got count = %d", count)
+	}
+}
+
+func TestHandleTransactionCreate_RemoveCommand(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+
+	// Create a transaction to be found by remove
+	_, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      -2500,
+		Currency:    "USD",
+		Description: "test pizza",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+
+	t.Run("remove command shows matching transactions", func(t *testing.T) {
+		form := url.Values{"input": {"remove 25"}}
+		req := httptest.NewRequest(http.MethodPost, "/api/transaction", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionCreate(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "test pizza") {
+			t.Error("Remove candidates should show matching transaction description")
+		}
+		if !strings.Contains(body, "transaction(s) matching") {
+			t.Error("Remove candidates should show count message")
+		}
+	})
+
+	t.Run("remove command with no matches shows error", func(t *testing.T) {
+		form := url.Values{"input": {"remove 999"}}
+		req := httptest.NewRequest(http.MethodPost, "/api/transaction", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+
+		app.HandleTransactionCreate(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "No matching transactions") {
+			t.Error("Should show no matching transactions message")
+		}
+	})
+}
+
+func TestHandleDashboard_ShowDeleted(t *testing.T) {
+	app := setupTestApp(t)
+	defer cleanupTestApp(t, app)
+
+	ctx := context.Background()
+	yearStr := fmt.Sprintf("%d", time.Now().Year())
+
+	// Create and soft-delete a transaction
+	tx, err := app.Q.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:      1,
+		CategoryID:  1,
+		Amount:      -2500,
+		Currency:    "USD",
+		Description: "deleted pizza",
+		Date:        time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transaction: %v", err)
+	}
+	err = app.Q.SoftDeleteTransaction(ctx, db.SoftDeleteTransactionParams{
+		ID:     tx.ID,
+		UserID: 1,
+	})
+	if err != nil {
+		t.Fatalf("Failed to soft delete: %v", err)
+	}
+
+	t.Run("hidden by default", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard?year="+yearStr, nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboard(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		body := rec.Body.String()
+		if strings.Contains(body, "deleted pizza") {
+			t.Error("Deleted transaction should not appear when show_deleted is not set")
+		}
+	})
+
+	t.Run("visible with show_deleted=true", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/dashboard?year="+yearStr+"&show_deleted=true", nil)
+		rec := httptest.NewRecorder()
+
+		app.HandleDashboard(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "deleted pizza") {
+			t.Error("Deleted transaction should appear when show_deleted=true")
+		}
+		if !strings.Contains(body, "removed") {
+			t.Error("Deleted transaction should show 'removed' label")
+		}
+	})
 }
