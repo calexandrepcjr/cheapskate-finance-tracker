@@ -15,7 +15,13 @@ type CategoryMapping struct {
 	Keywords []string
 }
 
-func Settings(mappings []CategoryMapping) templ.Component {
+type BackupStatus struct {
+	Enabled      bool
+	BackupPath   string
+	LastBackupAt string
+}
+
+func Settings(mappings []CategoryMapping, backup BackupStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -36,7 +42,7 @@ func Settings(mappings []CategoryMapping) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Layout("Settings", SettingsView(mappings)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout("Settings", SettingsView(mappings, backup)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -44,7 +50,7 @@ func Settings(mappings []CategoryMapping) templ.Component {
 	})
 }
 
-func SettingsView(mappings []CategoryMapping) templ.Component {
+func SettingsView(mappings []CategoryMapping, backup BackupStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -82,7 +88,7 @@ func SettingsView(mappings []CategoryMapping) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(m.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 34, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 40, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -95,7 +101,7 @@ func SettingsView(mappings []CategoryMapping) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(keywordCount(len(m.Keywords)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 36, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 42, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -113,7 +119,7 @@ func SettingsView(mappings []CategoryMapping) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(kw)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 47, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 53, Col: 15}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -134,7 +140,54 @@ func SettingsView(mappings []CategoryMapping) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<!-- Export Data --><div class=\"bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-3\"><h3 class=\"font-bold text-gray-700\">Export Data</h3><p class=\"text-sm text-gray-500\">Download all your transactions as a CSV file.</p><a href=\"/api/export/csv\" class=\"inline-block px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition\">Export to CSV</a></div><!-- Wipe Data --><div class=\"bg-white rounded-xl p-6 shadow-sm border border-red-100 space-y-3\"><h3 class=\"font-bold text-red-700\">Danger Zone</h3><p class=\"text-sm text-gray-500\">Permanently delete all transactions. This cannot be undone.</p><button id=\"wipe-btn\" class=\"px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition\" onclick=\"document.getElementById('wipe-confirm').classList.remove('hidden')\">Wipe All Data</button><div id=\"wipe-confirm\" class=\"hidden mt-4 p-4 bg-red-50 rounded-lg border border-red-200 space-y-3\"><p class=\"text-sm text-red-700 font-medium\">Are you sure? All transactions will be permanently deleted.</p><div class=\"flex gap-3\"><button hx-delete=\"/api/data\" hx-target=\"#wipe-result\" hx-swap=\"innerHTML\" class=\"px-4 py-2 bg-red-700 text-white text-sm font-medium rounded-lg hover:bg-red-800 transition\">Yes, delete everything</button> <button class=\"px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition\" onclick=\"document.getElementById('wipe-confirm').classList.add('hidden')\">Cancel</button></div></div><div id=\"wipe-result\"></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<!-- Export Data --><div class=\"bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-3\"><h3 class=\"font-bold text-gray-700\">Export Data</h3><p class=\"text-sm text-gray-500\">Download all your transactions as a CSV file.</p><a href=\"/api/export/csv\" class=\"inline-block px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition\">Export to CSV</a></div><!-- Backup & Restore --><div class=\"bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-4\"><div><h3 class=\"font-bold text-gray-700\">Backup & Restore</h3><p class=\"text-sm text-gray-500 mt-1\">Download a full database backup or restore from a previous one.</p></div><!-- Backup Status --><div class=\"text-sm space-y-1\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if backup.Enabled {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"flex items-center gap-2\"><span class=\"w-2 h-2 rounded-full bg-green-500\"></span> <span class=\"text-gray-600\">Automatic backups: <span class=\"font-medium text-green-700\">Enabled</span></span></div><div class=\"text-gray-500 ml-4\">Path: <code class=\"bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var6 string
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(backup.BackupPath)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 93, Col: 97}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</code></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if backup.LastBackupAt != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"text-gray-500 ml-4\">Last backup: <span class=\"font-medium\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var7 string
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(backup.LastBackupAt)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 97, Col: 67}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div class=\"flex items-center gap-2\"><span class=\"w-2 h-2 rounded-full bg-gray-400\"></span> <span class=\"text-gray-600\">Automatic backups: <span class=\"font-medium text-gray-500\">Disabled</span></span></div><p class=\"text-xs text-gray-400 ml-4\">Start the server with <code class=\"bg-gray-100 px-1.5 py-0.5 rounded font-mono\">--backup-path /your/folder</code> to enable automatic backups. Point it at a cloud-synced folder (Dropbox, Google Drive, Syncthing) for offsite backups.</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div><!-- Actions --><div class=\"flex flex-wrap gap-3\"><a href=\"/api/backup/download\" class=\"inline-block px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition\">Download Backup</a> <label class=\"inline-block px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition cursor-pointer\">Restore from Backup <input type=\"file\" name=\"backup\" accept=\".db\" class=\"hidden\" hx-post=\"/api/backup/restore\" hx-target=\"#restore-result\" hx-swap=\"innerHTML\" hx-encoding=\"multipart/form-data\"></label></div><div id=\"restore-result\"></div></div><!-- Wipe Data --><div class=\"bg-white rounded-xl p-6 shadow-sm border border-red-100 space-y-3\"><h3 class=\"font-bold text-red-700\">Danger Zone</h3><p class=\"text-sm text-gray-500\">Permanently delete all transactions. This cannot be undone.</p><button id=\"wipe-btn\" class=\"px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition\" onclick=\"document.getElementById('wipe-confirm').classList.remove('hidden')\">Wipe All Data</button><div id=\"wipe-confirm\" class=\"hidden mt-4 p-4 bg-red-50 rounded-lg border border-red-200 space-y-3\"><p class=\"text-sm text-red-700 font-medium\">Are you sure? All transactions will be permanently deleted.</p><div class=\"flex gap-3\"><button hx-delete=\"/api/data\" hx-target=\"#wipe-result\" hx-swap=\"innerHTML\" class=\"px-4 py-2 bg-red-700 text-white text-sm font-medium rounded-lg hover:bg-red-800 transition\">Yes, delete everything</button> <button class=\"px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition\" onclick=\"document.getElementById('wipe-confirm').classList.add('hidden')\">Cancel</button></div></div><div id=\"wipe-result\"></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -177,12 +230,12 @@ func WipeSuccess() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var6 == nil {
-			templ_7745c5c3_Var6 = templ.NopComponent
+		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var8 == nil {
+			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"p-4 rounded-xl bg-green-50 border border-green-100 text-green-700 flex items-center gap-3 mt-4\"><div class=\"bg-white p-2 rounded-full shadow-sm text-xl\">&#x2705;</div><div><div class=\"font-bold\">All data has been deleted</div><div class=\"text-xs opacity-75\">Your transaction history has been wiped.</div></div></div><script>\n\t\tvar confirm = document.getElementById('wipe-confirm');\n\t\tif (confirm) confirm.classList.add('hidden');\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"p-4 rounded-xl bg-green-50 border border-green-100 text-green-700 flex items-center gap-3 mt-4\"><div class=\"bg-white p-2 rounded-full shadow-sm text-xl\">&#x2705;</div><div><div class=\"font-bold\">All data has been deleted</div><div class=\"text-xs opacity-75\">Your transaction history has been wiped.</div></div></div><script>\n\t\tvar confirm = document.getElementById('wipe-confirm');\n\t\tif (confirm) confirm.classList.add('hidden');\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -206,25 +259,96 @@ func WipeError(msg string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var7 == nil {
-			templ_7745c5c3_Var7 = templ.NopComponent
+		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var9 == nil {
+			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 mt-4\">Failed to wipe data: ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 mt-4\">Failed to wipe data: ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 140, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 207, Col: 27}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func BackupRestoreSuccess() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var11 == nil {
+			templ_7745c5c3_Var11 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<div class=\"p-4 rounded-xl bg-green-50 border border-green-100 text-green-700 flex items-center gap-3 mt-4\"><div class=\"bg-white p-2 rounded-full shadow-sm text-xl\">&#x2705;</div><div><div class=\"font-bold\">Backup restored successfully</div><div class=\"text-xs opacity-75\">Your database has been replaced with the uploaded backup. Refresh the page to see updated data.</div></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func BackupRestoreError(msg string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 mt-4\">Restore failed: ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `client/templates/settings.templ`, Line: 223, Col: 22}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

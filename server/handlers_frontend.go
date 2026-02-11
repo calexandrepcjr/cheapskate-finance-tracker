@@ -397,7 +397,19 @@ func (app *Application) HandleSettings(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	templates.Settings(mappings).Render(r.Context(), w)
+
+	lastBackup := getLastBackupTime()
+	lastBackupStr := ""
+	if !lastBackup.IsZero() {
+		lastBackupStr = lastBackup.UTC().Format(time.RFC3339)
+	}
+	backup := templates.BackupStatus{
+		Enabled:      app.Config.BackupPath != "",
+		BackupPath:   app.Config.BackupPath,
+		LastBackupAt: lastBackupStr,
+	}
+
+	templates.Settings(mappings, backup).Render(r.Context(), w)
 }
 
 func (app *Application) HandleExportCSV(w http.ResponseWriter, r *http.Request) {

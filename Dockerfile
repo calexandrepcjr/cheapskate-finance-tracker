@@ -43,11 +43,11 @@ COPY --from=builder /app/bin/server /app/server
 COPY --from=builder /app/server/db/schema.sql /app/server/db/schema.sql
 COPY --from=builder /app/client/assets /app/client/assets
 
-# Create directory for database
-RUN mkdir -p /app/data
+# Create directories for database and backups
+RUN mkdir -p /app/data /app/backups
 
 # Expose the default port
 EXPOSE 8080
 
-# Run the server with database in the data directory
-CMD ["/app/server", "--port", "8080", "--db", "/app/data/cheapskate.db"]
+# Run the server with database in the data directory and backups enabled
+CMD ["/app/server", "--port", "8080", "--db", "/app/data/cheapskate.db", "--backup-path", "/app/backups"]
