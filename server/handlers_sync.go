@@ -107,7 +107,7 @@ func (app *Application) HandleStorageExport(w http.ResponseWriter, r *http.Reque
 			Description:  tx.Description,
 			Date:         tx.Date.UTC().Format(time.RFC3339),
 			CategoryName: tx.CategoryName,
-			CategoryType: "",
+			CategoryType: tx.CategoryType,
 			CreatedAt:    createdAt,
 		})
 	}

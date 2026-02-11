@@ -7,10 +7,13 @@ services:
       - "8080:8080"
     volumes:
       - cheapskate-data:/app/data
+      - cheapskate-backups:/app/backups
     restart: unless-stopped
     environment:
       - TZ=UTC
 
 volumes:
   cheapskate-data:
+    driver: local
+  cheapskate-backups:
     driver: local

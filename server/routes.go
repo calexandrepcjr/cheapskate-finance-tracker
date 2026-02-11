@@ -20,4 +20,9 @@ func (app *Application) setupRoutes(r chi.Router) {
 	r.Get("/api/storage/status", app.HandleStorageStatus)
 	r.Get("/api/storage/export", app.HandleStorageExport)
 	r.Post("/api/storage/import", app.HandleStorageImport)
+
+	// Backup endpoints
+	r.Get("/api/backup/download", app.HandleBackupDownload)
+	r.Post("/api/backup/restore", app.HandleBackupRestore)
+	r.Get("/api/backup/status", app.HandleBackupStatus)
 }

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 	"github.com/go-chi/chi/v5"
@@ -19,6 +22,8 @@ type Config struct {
 	Port           int
 	DBPath         string
 	CategoriesPath string
+	BackupPath     string
+	BackupInterval int
 }
 
 type Application struct {
@@ -33,6 +38,8 @@ func main() {
 	flag.IntVar(&cfg.Port, "port", 8080, "HTTP server port")
 	flag.StringVar(&cfg.DBPath, "db", "cheapskate.db", "Path to SQLite database")
 	flag.StringVar(&cfg.CategoriesPath, "categories", "categories.json", "Path to category mappings config file")
+	flag.StringVar(&cfg.BackupPath, "backup-path", "", "Directory for automatic backups (disabled if empty)")
+	flag.IntVar(&cfg.BackupInterval, "backup-interval", 30, "Backup interval in minutes")
 	flag.Parse()
 
 	// Initialize Database
@@ -67,6 +74,13 @@ func main() {
 	// Seed Data
 	if err := app.ensureSeed(); err != nil {
 		log.Printf("Warning: Failed to seed data: %v", err)
+	}
+
+	// Start backup loop if configured
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if cfg.BackupPath != "" {
+		go app.startBackupLoop(ctx)
 	}
 
 	// Setup Router
