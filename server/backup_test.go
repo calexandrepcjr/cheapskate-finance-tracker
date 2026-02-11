@@ -401,3 +401,48 @@ func TestLastBackupTime(t *testing.T) {
 		t.Errorf("Expected %v, got %v", now, got)
 	}
 }
+
+func TestRunBackupDoesNotUpdateTimeOnFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "source.db")
+	app := setupTestAppWithFile(t, srcPath)
+	defer app.DB.Close()
+
+	// Reset backup time
+	setLastBackupTime(time.Time{})
+
+	// Set backup path to an impossible location
+	app.Config.BackupPath = "/dev/null/impossible/path"
+
+	app.runBackup()
+
+	// lastBackupTime should still be zero because performBackup failed
+	if !getLastBackupTime().IsZero() {
+		t.Error("Expected lastBackupTime to remain zero after failed backup")
+	}
+}
+
+func TestRunBackupUpdatesTimeOnSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "source.db")
+	app := setupTestAppWithFile(t, srcPath)
+	defer app.DB.Close()
+
+	// Reset backup time
+	setLastBackupTime(time.Time{})
+
+	// Set backup path to a valid location
+	app.Config.BackupPath = filepath.Join(tmpDir, "backups")
+
+	before := time.Now()
+	app.runBackup()
+	after := time.Now()
+
+	got := getLastBackupTime()
+	if got.IsZero() {
+		t.Error("Expected lastBackupTime to be set after successful backup")
+	}
+	if got.Before(before) || got.After(after) {
+		t.Errorf("lastBackupTime %v not in expected range [%v, %v]", got, before, after)
+	}
+}

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 	"github.com/go-chi/chi/v5"
@@ -74,8 +77,10 @@ func main() {
 	}
 
 	// Start backup loop if configured
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 	if cfg.BackupPath != "" {
-		go app.startBackupLoop()
+		go app.startBackupLoop(ctx)
 	}
 
 	// Setup Router

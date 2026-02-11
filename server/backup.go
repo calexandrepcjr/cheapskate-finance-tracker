@@ -32,7 +32,7 @@ func setLastBackupTime(t time.Time) {
 }
 
 // startBackupLoop runs periodic backups at the configured interval.
-func (app *Application) startBackupLoop() {
+func (app *Application) startBackupLoop(ctx context.Context) {
 	interval := time.Duration(app.Config.BackupInterval) * time.Minute
 	log.Printf("Backup enabled: path=%s interval=%s", app.Config.BackupPath, interval)
 
@@ -42,20 +42,29 @@ func (app *Application) startBackupLoop() {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		app.runBackup()
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Backup loop stopping")
+			return
+		case <-ticker.C:
+			app.runBackup()
+		}
 	}
 }
 
 func (app *Application) runBackup() {
-	if err := app.performBackup(); err != nil {
-		log.Printf("Backup failed (db): %v", err)
+	dbErr := app.performBackup()
+	if dbErr != nil {
+		log.Printf("Backup failed (db): %v", dbErr)
 	}
 	if err := app.performJSONExport(); err != nil {
 		log.Printf("Backup failed (json): %v", err)
 	}
-	setLastBackupTime(time.Now())
-	log.Printf("Backup completed to %s", app.Config.BackupPath)
+	if dbErr == nil {
+		setLastBackupTime(time.Now())
+		log.Printf("Backup completed to %s", app.Config.BackupPath)
+	}
 }
 
 // performBackup creates a consistent SQLite backup using the backup API.

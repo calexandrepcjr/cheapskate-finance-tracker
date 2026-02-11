@@ -42,6 +42,7 @@ COPY --from=builder /app/bin/server /app/server
 # Copy necessary runtime files
 COPY --from=builder /app/server/db/schema.sql /app/server/db/schema.sql
 COPY --from=builder /app/client/assets /app/client/assets
+COPY --from=builder /app/categories.json /app/categories.json
 
 # Create directories for database and backups
 RUN mkdir -p /app/data /app/backups
