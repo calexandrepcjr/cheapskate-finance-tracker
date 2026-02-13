@@ -3,34 +3,54 @@ package templates
 import "github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 import "fmt"
 
-templ Home() {
-	@Layout("Quick Add", InputForm())
+templ Home(categories []db.GetTopUsedCategoriesRow) {
+	@Layout("Quick Add", InputForm(categories))
 }
 
-templ InputForm() {
+templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 	<div class="flex flex-col items-center justify-center h-[60vh] space-y-8 animate-fade-in-up">
-		<div class="text-center space-y-2">
+		<div id="main-description" class="text-center space-y-2">
 			<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
 			<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
 		</div>
 
-		<form hx-post="/api/transaction" hx-target="#result" hx-swap="innerHTML" class="w-full relative">
-			<div class="relative group">
+		if len(categories) > 0 {
+			<div id="category-shortcuts" class="flex gap-3 justify-center w-full">
+				for _, cat := range categories {
+					<button
+						type="button"
+						data-category-id={ fmt.Sprintf("%d", cat.ID) }
+						data-category-name={ cat.Name }
+						data-category-type={ cat.Type }
+						class="category-shortcut group relative flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-white/50 backdrop-blur-sm border border-gray-200 hover:border-purple-300 hover:bg-white transition-all duration-200 hover:scale-110 cursor-pointer shadow-sm hover:shadow-lg"
+						onclick="selectCategory(this)"
+					>
+						<span class="text-3xl">{ unwrapString(cat.Icon) }</span>
+						<span class="text-xs text-gray-600 mt-1 font-medium">{ cat.Name }</span>
+					</button>
+				}
+			</div>
+		}
+
+		<form hx-post="/api/transaction" hx-target="#result" hx-swap="innerHTML" class="w-full relative" id="transaction-form">
+			<input type="hidden" name="selected-category" id="selected-category" value=""/>
+			<div class="relative group" id="input-container">
 				<div class="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
-				<input 
-					type="text" 
-					name="input" 
-					placeholder="e.g., 25 pizza" 
+				<input
+					type="text"
+					name="input"
+					id="transaction-input"
+					placeholder="e.g., 25 pizza"
 					class="relative w-full bg-white text-2xl p-6 rounded-xl border-none shadow-xl focus:ring-4 focus:ring-purple-200 outline-none placeholder:text-gray-300 transition-all text-center font-medium"
 					autofocus
 					autocomplete="off"
 				/>
 			</div>
-			
+
 			<div id="result" class="mt-8"></div>
 		</form>
 
-		<div class="grid grid-cols-3 gap-4 w-full text-center text-sm text-gray-400">
+		<div id="examples" class="grid grid-cols-3 gap-4 w-full text-center text-sm text-gray-400">
 			<div class="p-3 rounded-lg border border-gray-100 bg-white/50">
 				"20 taxi to work"
 			</div>
@@ -42,6 +62,110 @@ templ InputForm() {
 			</div>
 		</div>
 	</div>
+
+	<script>
+		let selectedCategory = null;
+
+		function selectCategory(button) {
+			const categoryName = button.getAttribute('data-category-name');
+			const categoryType = button.getAttribute('data-category-type');
+			const categoryId = button.getAttribute('data-category-id');
+			const icon = button.querySelector('span.text-3xl').textContent;
+
+			selectedCategory = { name: categoryName, type: categoryType, id: categoryId, icon: icon };
+
+			// Update hidden input
+			document.getElementById('selected-category').value = categoryName;
+
+			// Update description
+			const description = document.getElementById('main-description');
+			const verb = categoryType === 'income' ? 'earned' : 'spent';
+			description.innerHTML = `
+				<h1 class="text-3xl font-bold text-gray-900">How much have you ${verb} in ${icon} ${categoryName}?</h1>
+				<p class="text-gray-500">Just type the amount, we've got the category!</p>
+			`;
+
+			// Fade other category buttons
+			document.querySelectorAll('.category-shortcut').forEach(btn => {
+				if (btn !== button) {
+					btn.style.opacity = '0.3';
+					btn.style.transform = 'scale(0.9)';
+				} else {
+					btn.style.borderColor = '#9333EA';
+					btn.style.backgroundColor = '#F3E8FF';
+				}
+			});
+
+			// Grow input slightly
+			const inputContainer = document.getElementById('input-container');
+			inputContainer.style.transform = 'scale(1.05)';
+
+			// Update input placeholder
+			const input = document.getElementById('transaction-input');
+			input.placeholder = 'e.g., 25';
+			input.focus();
+
+			// Hide examples
+			document.getElementById('examples').style.opacity = '0.3';
+		}
+
+		function resetForm() {
+			selectedCategory = null;
+			document.getElementById('selected-category').value = '';
+
+			// Reset description
+			const description = document.getElementById('main-description');
+			description.innerHTML = `
+				<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
+				<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
+			`;
+
+			// Reset category buttons
+			document.querySelectorAll('.category-shortcut').forEach(btn => {
+				btn.style.opacity = '1';
+				btn.style.transform = 'scale(1)';
+				btn.style.borderColor = '';
+				btn.style.backgroundColor = '';
+			});
+
+			// Reset input
+			const inputContainer = document.getElementById('input-container');
+			inputContainer.style.transform = 'scale(1)';
+
+			const input = document.getElementById('transaction-input');
+			input.placeholder = 'e.g., 25 pizza';
+
+			// Reset examples
+			document.getElementById('examples').style.opacity = '1';
+		}
+
+		// Handle form submission to append category if selected
+		document.getElementById('transaction-form').addEventListener('submit', function(e) {
+			const input = document.getElementById('transaction-input');
+			if (selectedCategory && input.value.trim()) {
+				// If only amount is entered, append category
+				const value = input.value.trim();
+				// Check if input contains only numbers/decimals
+				if (/^\d+(\.\d+)?$/.test(value)) {
+					input.value = value + ' ' + selectedCategory.name;
+				}
+			}
+		});
+
+		// Reset on ESC key
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape' && selectedCategory) {
+				resetForm();
+			}
+		});
+
+		// Reset after successful submission (triggered by HTMX)
+		document.body.addEventListener('htmx:afterSwap', function(evt) {
+			if (evt.detail.target.id === 'result') {
+				setTimeout(resetForm, 100);
+			}
+		});
+	</script>
 }
 
 templ TransactionSuccess(amount string, desc string, category string) {

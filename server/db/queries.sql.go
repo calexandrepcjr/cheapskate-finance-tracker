@@ -758,3 +758,56 @@ func (q *Queries) SoftDeleteTransaction(ctx context.Context, arg SoftDeleteTrans
 	_, err := q.exec(ctx, q.softDeleteTransactionStmt, softDeleteTransaction, arg.ID, arg.UserID)
 	return err
 }
+
+const getTopUsedCategories = `-- name: GetTopUsedCategories :many
+SELECT c.id, c.name, c.type, c.icon, c.color, COUNT(t.id) as usage_count
+FROM categories c
+LEFT JOIN transactions t ON t.category_id = c.id AND t.deleted_at IS NULL AND t.user_id = ?
+GROUP BY c.id, c.name, c.type, c.icon, c.color
+ORDER BY usage_count DESC, c.name ASC
+LIMIT ?
+`
+
+type GetTopUsedCategoriesParams struct {
+	UserID int64 `json:"user_id"`
+	Limit  int64 `json:"limit"`
+}
+
+type GetTopUsedCategoriesRow struct {
+	ID         int64          `json:"id"`
+	Name       string         `json:"name"`
+	Type       string         `json:"type"`
+	Icon       sql.NullString `json:"icon"`
+	Color      sql.NullString `json:"color"`
+	UsageCount int64          `json:"usage_count"`
+}
+
+func (q *Queries) GetTopUsedCategories(ctx context.Context, arg GetTopUsedCategoriesParams) ([]GetTopUsedCategoriesRow, error) {
+	rows, err := q.query(ctx, nil, getTopUsedCategories, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTopUsedCategoriesRow
+	for rows.Next() {
+		var i GetTopUsedCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Icon,
+			&i.Color,
+			&i.UsageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
