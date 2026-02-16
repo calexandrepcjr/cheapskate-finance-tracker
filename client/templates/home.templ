@@ -22,11 +22,13 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 						data-category-id={ fmt.Sprintf("%d", cat.ID) }
 						data-category-name={ cat.Name }
 						data-category-type={ cat.Type }
-						class="category-shortcut group relative flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-white/50 backdrop-blur-sm border border-gray-200 hover:border-purple-300 hover:bg-white transition-all duration-200 hover:scale-110 cursor-pointer shadow-sm hover:shadow-lg"
+						class="category-shortcut group relative flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-white/50 backdrop-blur-sm border-2 border-gray-200 hover:border-purple-300 hover:bg-white cursor-pointer shadow-sm hover:shadow-lg"
+						style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);"
 						onclick="selectCategory(this)"
+						aria-label={ fmt.Sprintf("Select %s category", cat.Name) }
 					>
-						<span class="text-3xl">{ unwrapString(cat.Icon) }</span>
-						<span class="text-xs text-gray-600 mt-1 font-medium">{ cat.Name }</span>
+						<span class="text-3xl pointer-events-none">{ unwrapString(cat.Icon) }</span>
+						<span class="text-xs text-gray-600 mt-1 font-medium pointer-events-none">{ cat.Name }</span>
 					</button>
 				}
 			</div>
@@ -65,6 +67,7 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 
 	<script>
 		let selectedCategory = null;
+		let selectedButton = null;
 
 		function selectCategory(button) {
 			const categoryName = button.getAttribute('data-category-name');
@@ -72,32 +75,54 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 			const categoryId = button.getAttribute('data-category-id');
 			const icon = button.querySelector('span.text-3xl').textContent;
 
+			// If clicking the same category, deselect it
+			if (selectedButton === button) {
+				resetForm();
+				return;
+			}
+
+			// Store selected category and button
 			selectedCategory = { name: categoryName, type: categoryType, id: categoryId, icon: icon };
+			selectedButton = button;
 
 			// Update hidden input
 			document.getElementById('selected-category').value = categoryName;
 
-			// Update description
+			// Update description with smooth transition
 			const description = document.getElementById('main-description');
 			const verb = categoryType === 'income' ? 'earned' : 'spent';
-			description.innerHTML = `
-				<h1 class="text-3xl font-bold text-gray-900">How much have you ${verb} in ${icon} ${categoryName}?</h1>
-				<p class="text-gray-500">Just type the amount, we've got the category!</p>
-			`;
+			description.style.transition = 'opacity 0.2s ease-in-out';
+			description.style.opacity = '0';
 
-			// Fade other category buttons
+			setTimeout(() => {
+				description.innerHTML = `
+					<h1 class="text-3xl font-bold text-gray-900">How much have you ${verb} in ${icon} ${categoryName}?</h1>
+					<p class="text-gray-500">Just type the amount, we've got the category! <span class="text-xs">(Click again to deselect)</span></p>
+				`;
+				description.style.opacity = '1';
+			}, 150);
+
+			// Reset ALL button styles first, then apply new styles
 			document.querySelectorAll('.category-shortcut').forEach(btn => {
+				btn.style.opacity = '1';
+				btn.style.transform = 'scale(1)';
+				btn.style.borderColor = '';
+				btn.style.backgroundColor = '';
+
 				if (btn !== button) {
-					btn.style.opacity = '0.3';
-					btn.style.transform = 'scale(0.9)';
+					btn.style.opacity = '0.4';
+					btn.style.transform = 'scale(0.95)';
 				} else {
 					btn.style.borderColor = '#9333EA';
 					btn.style.backgroundColor = '#F3E8FF';
+					btn.style.transform = 'scale(1.1)';
+					btn.style.boxShadow = '0 10px 25px -5px rgba(147, 51, 234, 0.3)';
 				}
 			});
 
 			// Grow input slightly
 			const inputContainer = document.getElementById('input-container');
+			inputContainer.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 			inputContainer.style.transform = 'scale(1.05)';
 
 			// Update input placeholder
@@ -105,20 +130,29 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 			input.placeholder = 'e.g., 25';
 			input.focus();
 
-			// Hide examples
-			document.getElementById('examples').style.opacity = '0.3';
+			// Fade examples
+			const examples = document.getElementById('examples');
+			examples.style.transition = 'opacity 0.3s ease-in-out';
+			examples.style.opacity = '0.3';
 		}
 
 		function resetForm() {
 			selectedCategory = null;
+			selectedButton = null;
 			document.getElementById('selected-category').value = '';
 
-			// Reset description
+			// Reset description with smooth transition
 			const description = document.getElementById('main-description');
-			description.innerHTML = `
-				<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
-				<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
-			`;
+			description.style.transition = 'opacity 0.2s ease-in-out';
+			description.style.opacity = '0';
+
+			setTimeout(() => {
+				description.innerHTML = `
+					<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
+					<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
+				`;
+				description.style.opacity = '1';
+			}, 150);
 
 			// Reset category buttons
 			document.querySelectorAll('.category-shortcut').forEach(btn => {
@@ -126,25 +160,37 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 				btn.style.transform = 'scale(1)';
 				btn.style.borderColor = '';
 				btn.style.backgroundColor = '';
+				btn.style.boxShadow = '';
 			});
 
 			// Reset input
 			const inputContainer = document.getElementById('input-container');
+			inputContainer.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 			inputContainer.style.transform = 'scale(1)';
 
 			const input = document.getElementById('transaction-input');
 			input.placeholder = 'e.g., 25 pizza';
 
 			// Reset examples
-			document.getElementById('examples').style.opacity = '1';
+			const examples = document.getElementById('examples');
+			examples.style.transition = 'opacity 0.3s ease-in-out';
+			examples.style.opacity = '1';
 		}
 
 		// Handle form submission to append category if selected
 		document.getElementById('transaction-form').addEventListener('submit', function(e) {
 			const input = document.getElementById('transaction-input');
-			if (selectedCategory && input.value.trim()) {
+			const value = input.value.trim();
+
+			// Prevent empty submissions
+			if (!value) {
+				e.preventDefault();
+				input.focus();
+				return;
+			}
+
+			if (selectedCategory && value) {
 				// If only amount is entered, append category
-				const value = input.value.trim();
 				// Check if input contains only numbers/decimals
 				if (/^\d+(\.\d+)?$/.test(value)) {
 					input.value = value + ' ' + selectedCategory.name;
@@ -152,10 +198,27 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 			}
 		});
 
-		// Reset on ESC key
+		// Keyboard shortcuts
 		document.addEventListener('keydown', function(e) {
+			// ESC to reset selection
 			if (e.key === 'Escape' && selectedCategory) {
+				e.preventDefault();
 				resetForm();
+				document.getElementById('transaction-input').focus();
+			}
+
+			// Number keys 1-5 to quickly select categories
+			if (e.key >= '1' && e.key <= '5' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+				const input = document.getElementById('transaction-input');
+				// Only trigger if not typing in input
+				if (document.activeElement !== input || input.value === '') {
+					e.preventDefault();
+					const buttons = document.querySelectorAll('.category-shortcut');
+					const index = parseInt(e.key) - 1;
+					if (buttons[index]) {
+						buttons[index].click();
+					}
+				}
 			}
 		});
 
@@ -163,6 +226,17 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 		document.body.addEventListener('htmx:afterSwap', function(evt) {
 			if (evt.detail.target.id === 'result') {
 				setTimeout(resetForm, 100);
+			}
+		});
+
+		// Add visual feedback for keyboard shortcuts on hover
+		document.querySelectorAll('.category-shortcut').forEach((btn, index) => {
+			if (index < 5) {
+				const badge = document.createElement('div');
+				badge.className = 'absolute -top-2 -right-2 bg-purple-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200';
+				badge.textContent = (index + 1).toString();
+				badge.style.pointerEvents = 'none';
+				btn.appendChild(badge);
 			}
 		});
 	</script>
