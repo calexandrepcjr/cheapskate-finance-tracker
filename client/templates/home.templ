@@ -3,34 +3,56 @@ package templates
 import "github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 import "fmt"
 
-templ Home() {
-	@Layout("Quick Add", InputForm())
+templ Home(categories []db.GetTopUsedCategoriesRow) {
+	@Layout("Quick Add", InputForm(categories))
 }
 
-templ InputForm() {
+templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 	<div class="flex flex-col items-center justify-center h-[60vh] space-y-8 animate-fade-in-up">
-		<div class="text-center space-y-2">
+		<div id="main-description" class="text-center space-y-2">
 			<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
 			<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
 		</div>
 
-		<form hx-post="/api/transaction" hx-target="#result" hx-swap="innerHTML" class="w-full relative">
-			<div class="relative group">
+		if len(categories) > 0 {
+			<div id="category-shortcuts" class="flex gap-3 justify-center w-full">
+				for _, cat := range categories {
+					<button
+						type="button"
+						data-category-id={ fmt.Sprintf("%d", cat.ID) }
+						data-category-name={ cat.Name }
+						data-category-type={ cat.Type }
+						class="category-shortcut group relative flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-white/50 backdrop-blur-sm border-2 border-gray-200 hover:border-purple-300 hover:bg-white cursor-pointer shadow-sm hover:shadow-lg"
+						style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);"
+						onclick="selectCategory(this)"
+						aria-label={ fmt.Sprintf("Select %s category", cat.Name) }
+					>
+						<span class="text-3xl pointer-events-none">{ unwrapString(cat.Icon) }</span>
+						<span class="text-xs text-gray-600 mt-1 font-medium pointer-events-none">{ cat.Name }</span>
+					</button>
+				}
+			</div>
+		}
+
+		<form hx-post="/api/transaction" hx-target="#result" hx-swap="innerHTML" class="w-full relative" id="transaction-form">
+			<input type="hidden" name="selected-category" id="selected-category" value=""/>
+			<div class="relative group" id="input-container">
 				<div class="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
-				<input 
-					type="text" 
-					name="input" 
-					placeholder="e.g., 25 pizza" 
+				<input
+					type="text"
+					name="input"
+					id="transaction-input"
+					placeholder="e.g., 25 pizza"
 					class="relative w-full bg-white text-2xl p-6 rounded-xl border-none shadow-xl focus:ring-4 focus:ring-purple-200 outline-none placeholder:text-gray-300 transition-all text-center font-medium"
 					autofocus
 					autocomplete="off"
 				/>
 			</div>
-			
+
 			<div id="result" class="mt-8"></div>
 		</form>
 
-		<div class="grid grid-cols-3 gap-4 w-full text-center text-sm text-gray-400">
+		<div id="examples" class="grid grid-cols-3 gap-4 w-full text-center text-sm text-gray-400">
 			<div class="p-3 rounded-lg border border-gray-100 bg-white/50">
 				"20 taxi to work"
 			</div>
@@ -42,6 +64,156 @@ templ InputForm() {
 			</div>
 		</div>
 	</div>
+
+	<script>
+		let selectedCategory = null;
+		let selectedButton = null;
+
+		function selectCategory(button) {
+			const categoryName = button.getAttribute('data-category-name');
+			const categoryType = button.getAttribute('data-category-type');
+			const categoryId = button.getAttribute('data-category-id');
+			const icon = button.querySelector('span.text-3xl').textContent;
+
+			// If clicking the same category, deselect it
+			if (selectedButton === button) {
+				resetForm();
+				return;
+			}
+
+			// Store selected category and button
+			selectedCategory = { name: categoryName, type: categoryType, id: categoryId, icon: icon };
+			selectedButton = button;
+
+			// Update hidden input
+			document.getElementById('selected-category').value = categoryName;
+
+			// Update description with smooth transition
+			const description = document.getElementById('main-description');
+			const verb = categoryType === 'income' ? 'earned' : 'spent';
+			description.style.transition = 'opacity 0.2s ease-in-out';
+			description.style.opacity = '0';
+
+			setTimeout(() => {
+				description.innerHTML = `
+					<h1 class="text-3xl font-bold text-gray-900">How much have you ${verb} in ${icon} ${categoryName}?</h1>
+					<p class="text-gray-500">Just type the amount, we've got the category! <span class="text-xs">(Click again to deselect)</span></p>
+				`;
+				description.style.opacity = '1';
+			}, 150);
+
+			// Reset ALL button styles first, then apply new styles
+			document.querySelectorAll('.category-shortcut').forEach(btn => {
+				btn.style.opacity = '1';
+				btn.style.transform = 'scale(1)';
+				btn.style.borderColor = '';
+				btn.style.backgroundColor = '';
+
+				if (btn !== button) {
+					btn.style.opacity = '0.4';
+					btn.style.transform = 'scale(0.95)';
+				} else {
+					btn.style.borderColor = '#9333EA';
+					btn.style.backgroundColor = '#F3E8FF';
+					btn.style.transform = 'scale(1.1)';
+					btn.style.boxShadow = '0 10px 25px -5px rgba(147, 51, 234, 0.3)';
+				}
+			});
+
+			// Grow input slightly
+			const inputContainer = document.getElementById('input-container');
+			inputContainer.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+			inputContainer.style.transform = 'scale(1.05)';
+
+			// Update input placeholder
+			const input = document.getElementById('transaction-input');
+			input.placeholder = 'e.g., 25';
+			input.focus();
+
+			// Fade examples
+			const examples = document.getElementById('examples');
+			examples.style.transition = 'opacity 0.3s ease-in-out';
+			examples.style.opacity = '0.3';
+		}
+
+		function resetForm() {
+			selectedCategory = null;
+			selectedButton = null;
+			document.getElementById('selected-category').value = '';
+
+			// Reset description with smooth transition
+			const description = document.getElementById('main-description');
+			description.style.transition = 'opacity 0.2s ease-in-out';
+			description.style.opacity = '0';
+
+			setTimeout(() => {
+				description.innerHTML = `
+					<h1 class="text-3xl font-bold text-gray-900">What did you spend?</h1>
+					<p class="text-gray-500">Just type it naturally. We'll figure it out.</p>
+				`;
+				description.style.opacity = '1';
+			}, 150);
+
+			// Reset category buttons
+			document.querySelectorAll('.category-shortcut').forEach(btn => {
+				btn.style.opacity = '1';
+				btn.style.transform = 'scale(1)';
+				btn.style.borderColor = '';
+				btn.style.backgroundColor = '';
+				btn.style.boxShadow = '';
+			});
+
+			// Reset input
+			const inputContainer = document.getElementById('input-container');
+			inputContainer.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+			inputContainer.style.transform = 'scale(1)';
+
+			const input = document.getElementById('transaction-input');
+			input.placeholder = 'e.g., 25 pizza';
+
+			// Reset examples
+			const examples = document.getElementById('examples');
+			examples.style.transition = 'opacity 0.3s ease-in-out';
+			examples.style.opacity = '1';
+		}
+
+		// Handle form submission to append category if selected
+		document.getElementById('transaction-form').addEventListener('submit', function(e) {
+			const input = document.getElementById('transaction-input');
+			const value = input.value.trim();
+
+			// Prevent empty submissions
+			if (!value) {
+				e.preventDefault();
+				input.focus();
+				return;
+			}
+
+			if (selectedCategory && value) {
+				// If only amount is entered, append category
+				// Check if input contains only numbers/decimals
+				if (/^\d+(\.\d+)?$/.test(value)) {
+					input.value = value + ' ' + selectedCategory.name;
+				}
+			}
+		});
+
+		// ESC to reset selection
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape' && selectedCategory) {
+				e.preventDefault();
+				resetForm();
+				document.getElementById('transaction-input').focus();
+			}
+		});
+
+		// Reset after successful submission (triggered by HTMX)
+		document.body.addEventListener('htmx:afterSwap', function(evt) {
+			if (evt.detail.target.id === 'result') {
+				setTimeout(resetForm, 100);
+			}
+		});
+	</script>
 }
 
 templ TransactionSuccess(amount string, desc string, category string) {

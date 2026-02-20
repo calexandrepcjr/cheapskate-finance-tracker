@@ -14,7 +14,21 @@ import (
 )
 
 func (app *Application) HandleHome(w http.ResponseWriter, r *http.Request) {
-	templates.Home().Render(r.Context(), w)
+	ctx := r.Context()
+	userID := int64(1) // Hardcoded for single user MVP
+
+	// Get top 5 used categories
+	topCategories, err := app.Q.GetTopUsedCategories(ctx, db.GetTopUsedCategoriesParams{
+		UserID: userID,
+		Limit:  5,
+	})
+	if err != nil {
+		// If error, just render with empty categories
+		templates.Home(nil).Render(ctx, w)
+		return
+	}
+
+	templates.Home(topCategories).Render(ctx, w)
 }
 
 const transactionsPageSize = 20

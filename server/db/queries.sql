@@ -139,3 +139,11 @@ LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
 SELECT COUNT(*) as count
 FROM transactions t
 WHERE strftime('%Y', t.date) = CAST(? AS TEXT);
+
+-- name: GetTopUsedCategories :many
+SELECT c.id, c.name, c.type, c.icon, c.color, COUNT(t.id) as usage_count
+FROM categories c
+LEFT JOIN transactions t ON t.category_id = c.id AND t.deleted_at IS NULL AND t.user_id = ?
+GROUP BY c.id, c.name, c.type, c.icon, c.color
+ORDER BY usage_count DESC, c.name ASC
+LIMIT ?;

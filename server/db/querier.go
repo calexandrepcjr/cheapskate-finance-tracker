@@ -18,6 +18,7 @@ type Querier interface {
 	GetCategoryByName(ctx context.Context, name string) (Category, error)
 	GetCategoryTotalsByYear(ctx context.Context, dollar_1 string) ([]GetCategoryTotalsByYearRow, error)
 	GetDistinctTransactionYears(ctx context.Context) ([]int64, error)
+	GetTopUsedCategories(ctx context.Context, arg GetTopUsedCategoriesParams) ([]GetTopUsedCategoriesRow, error)
 	GetMonthlyTotalsByYear(ctx context.Context, dollar_1 string) ([]GetMonthlyTotalsByYearRow, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	ListAllTransactionsForExport(ctx context.Context) ([]ListAllTransactionsForExportRow, error)
