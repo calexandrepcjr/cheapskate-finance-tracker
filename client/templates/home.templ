@@ -198,27 +198,12 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 			}
 		});
 
-		// Keyboard shortcuts
+		// ESC to reset selection
 		document.addEventListener('keydown', function(e) {
-			// ESC to reset selection
 			if (e.key === 'Escape' && selectedCategory) {
 				e.preventDefault();
 				resetForm();
 				document.getElementById('transaction-input').focus();
-			}
-
-			// Number keys 1-5 to quickly select categories
-			if (e.key >= '1' && e.key <= '5' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-				const input = document.getElementById('transaction-input');
-				// Only trigger if not typing in input
-				if (document.activeElement !== input || input.value === '') {
-					e.preventDefault();
-					const buttons = document.querySelectorAll('.category-shortcut');
-					const index = parseInt(e.key) - 1;
-					if (buttons[index]) {
-						buttons[index].click();
-					}
-				}
 			}
 		});
 
@@ -226,17 +211,6 @@ templ InputForm(categories []db.GetTopUsedCategoriesRow) {
 		document.body.addEventListener('htmx:afterSwap', function(evt) {
 			if (evt.detail.target.id === 'result') {
 				setTimeout(resetForm, 100);
-			}
-		});
-
-		// Add visual feedback for keyboard shortcuts on hover
-		document.querySelectorAll('.category-shortcut').forEach((btn, index) => {
-			if (index < 5) {
-				const badge = document.createElement('div');
-				badge.className = 'absolute -top-2 -right-2 bg-purple-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200';
-				badge.textContent = (index + 1).toString();
-				badge.style.pointerEvents = 'none';
-				btn.appendChild(badge);
 			}
 		});
 	</script>
