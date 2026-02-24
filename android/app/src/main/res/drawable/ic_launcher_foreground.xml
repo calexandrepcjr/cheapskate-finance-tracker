@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ic_launcher_foreground.xml
+    Simple placeholder foreground for the adaptive launcher icon.
+    Shows a dollar-sign "C" monogram to represent Cheapskate.
+    Replace with a proper asset before publishing to the Play Store.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,20 C35.2,20 20,35.2 20,54 C20,72.8 35.2,88 54,88
+                          C72.8,88 88,72.8 88,54 C88,35.2 72.8,20 54,20 Z
+                          M57,72 L57,76 L51,76 L51,72 C44.4,70.8 40,66 40,60
+                          L46,60 C46,63.3 49.6,66 54,66 C58.4,66 62,63.3 62,60
+                          C62,56.7 58.4,54 54,54 C46.3,54 40,49.3 40,44
+                          C40,39.4 43.9,35.5 49.9,34.1 L51,34 L51,30 L57,30 L57,34.1
+                          C63.1,35.5 67,39.4 67,44 L61,44 C61,40.7 57.9,38 54,38
+                          C50.1,38 47,40.7 47,44 C47,47.3 50.1,50 54,50
+                          C61.7,50 68,54.7 68,60 C68,64.6 64.1,68.5 58.1,69.9 L57,72 Z" />
+</vector>

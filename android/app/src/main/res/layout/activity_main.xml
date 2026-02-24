@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    activity_main.xml
+    Root layout for MainActivity.
+
+    Structure:
+      FrameLayout (root)
+        ├── WebView                – full-screen browser content
+        ├── ProgressBar (horizontal) – page load indicator at the top
+        └── LinearLayout (loading overlay)
+              ├── ProgressBar (spinning) – shown while the server starts
+              └── TextView             – status message ("Starting local server…")
+
+    The loading overlay sits on top of the WebView (z-order).
+    It is hidden (GONE) once the server is ready and the WebView has loaded.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Main browser content -->
+    <WebView
+        android:id="@+id/web_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Thin horizontal progress bar shown at the very top while a page is loading.
+         Sits above the WebView so it is always visible. -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="top"
+        android:max="100"
+        android:visibility="gone" />
+
+    <!-- Full-screen loading overlay shown while the Go server is starting up. -->
+    <LinearLayout
+        android:id="@+id/loading_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:background="#FFFAFAFA"
+        android:visibility="visible">
+
+        <!-- App name / branding -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cheapskate"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#FF212121"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Personal Finance Tracker"
+            android:textSize="14sp"
+            android:textColor="#FF757575"
+            android:layout_marginBottom="48dp" />
+
+        <!-- Spinner while the server starts -->
+        <ProgressBar
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:indeterminate="true"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Dynamic status message updated from code -->
+        <TextView
+            android:id="@+id/text_loading_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Starting local server…"
+            android:textSize="16sp"
+            android:textColor="#FF616161"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+</FrameLayout>

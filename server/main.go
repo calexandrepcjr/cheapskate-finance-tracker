@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -12,10 +13,11 @@ import (
 	"strings"
 	"syscall"
 
+	cheapskate "github.com/calexandrepcjr/cheapskate-finance-tracker"
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type Config struct {
@@ -43,7 +45,7 @@ func main() {
 	flag.Parse()
 
 	// Initialize Database
-	dbConn, err := sql.Open("sqlite3", cfg.DBPath)
+	dbConn, err := sql.Open("sqlite", cfg.DBPath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -88,8 +90,12 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// Static Files
-	fileServer(r, "/assets", http.Dir("client/assets"))
+	// Static Files - serve from embedded filesystem
+	clientAssets, err := fs.Sub(cheapskate.ClientAssets, "client/assets")
+	if err != nil {
+		log.Fatalf("Failed to create sub filesystem: %v", err)
+	}
+	fileServer(r, "/assets", http.FS(clientAssets))
 
 	// Routes
 	app.setupRoutes(r)
@@ -103,11 +109,7 @@ func main() {
 }
 
 func (app *Application) ensureSchema() error {
-	schema, err := os.ReadFile("server/db/schema.sql")
-	if err != nil {
-		return fmt.Errorf("could not read schema: %w", err)
-	}
-	_, err = app.DB.Exec(string(schema))
+	_, err := app.DB.Exec(cheapskate.SchemaSQL)
 	if err != nil {
 		// Just log, as it fails if table exists
 		log.Printf("Schema exec: %v", err)

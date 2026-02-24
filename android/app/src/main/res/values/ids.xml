@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ids.xml
+    Declares stable resource IDs for programmatically-added menu items in MainActivity.
+    Using declared IDs (rather than View.generateViewId()) lets the compiler verify
+    usages at build time and keeps the values consistent across app restarts.
+-->
+<resources>
+    <item name="menu_settings" type="id" />
+    <item name="menu_reload"   type="id" />
+</resources>

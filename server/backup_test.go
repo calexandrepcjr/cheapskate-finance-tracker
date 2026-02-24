@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // setupTestAppWithFile creates a test app using a file-based SQLite database.
@@ -23,7 +23,7 @@ import (
 func setupTestAppWithFile(t *testing.T, dbPath string) *Application {
 	t.Helper()
 
-	dbConn, err := sql.Open("sqlite3", dbPath)
+	dbConn, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestPerformBackup(t *testing.T) {
 	}
 
 	// Verify backup contains the data
-	backupDB, err := sql.Open("sqlite3", backupPath)
+	backupDB, err := sql.Open("sqlite", backupPath)
 	if err != nil {
 		t.Fatalf("Failed to open backup database: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestHandleBackupRestore(t *testing.T) {
 
 	// Create source database with data to restore from
 	srcPath := filepath.Join(tmpDir, "restore-source.db")
-	srcDB, err := sql.Open("sqlite3", srcPath)
+	srcDB, err := sql.Open("sqlite", srcPath)
 	if err != nil {
 		t.Fatalf("Failed to create source database: %v", err)
 	}

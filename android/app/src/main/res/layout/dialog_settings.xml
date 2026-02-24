@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    dialog_settings.xml
+    Content view for the Server Settings AlertDialog.
+
+    Structure:
+      ScrollView
+        └── LinearLayout (vertical)
+              ├── TextView (section header)
+              ├── LinearLayout (row: label + Switch)  ← switch_remote_mode
+              └── LinearLayout (container_remote_url, hidden in local mode)
+                    ├── TextView (label)
+                    └── EditText  ← edit_remote_url
+-->
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Section: server mode toggle -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Server Mode"
+            android:textSize="12sp"
+            android:textAllCaps="true"
+            android:textColor="#FF9E9E9E"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Row: description + Switch -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Use remote server"
+                    android:textSize="16sp"
+                    android:textColor="#FF212121" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Connect to an external Cheapskate instance instead of the local binary."
+                    android:textSize="12sp"
+                    android:textColor="#FF757575"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!--
+                Switch controlling local vs remote mode.
+                Checked  = remote mode enabled.
+                Unchecked = local embedded server.
+            -->
+            <Switch
+                android:id="@+id/switch_remote_mode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp" />
+
+        </LinearLayout>
+
+        <!-- Remote URL container – shown only when switch_remote_mode is ON -->
+        <LinearLayout
+            android:id="@+id/container_remote_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Remote Server URL"
+                android:textSize="12sp"
+                android:textAllCaps="true"
+                android:textColor="#FF9E9E9E"
+                android:layout_marginBottom="4dp" />
+
+            <!--
+                Free-text field for the remote server URL.
+                Example: http://192.168.1.100:8080
+            -->
+            <EditText
+                android:id="@+id/edit_remote_url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="http://192.168.1.100:8080"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>

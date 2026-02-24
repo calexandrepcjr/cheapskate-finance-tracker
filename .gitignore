@@ -15,3 +15,13 @@ tmp/
 
 # Environment
 .env
+
+# Android build artifacts
+android/app/build/
+android/build/
+android/.gradle/
+android/app/src/main/assets/server-arm64
+android/local.properties
+
+# Vendor (downloaded at build time via make vendor)
+client/assets/vendor/

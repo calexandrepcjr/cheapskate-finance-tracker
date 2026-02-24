@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    AndroidManifest.xml
+
+    Key permissions:
+      INTERNET     – required for the WebView to reach http://localhost:8080 and for
+                     remote-server mode to reach any external URL.
+      FOREGROUND_SERVICE – declared here for future use if the server is moved to a
+                     foreground service so it survives the activity being backgrounded.
+
+    The application uses a single Activity (MainActivity) which also acts as the
+    launcher entry point.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.cheapskate.app">
+
+    <!-- Network access: required by WebView (localhost) and remote-server mode. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Allow cleartext HTTP traffic to localhost.
+        Without this, Android 9+ blocks http:// connections by default.
+        The network security config below permits it selectively.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher_foreground"
+        android:roundIcon="@drawable/ic_launcher_foreground"
+        android:allowBackup="true"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <!--
+            MainActivity: single-activity host for the WebView.
+
+            configChanges: handle orientation / keyboard / screen-size changes without
+            recreating the activity (avoids restarting the Go server on rotation).
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+
+            <!-- Launcher intent filter: this is the app entry point. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+    </application>
+
+</manifest>

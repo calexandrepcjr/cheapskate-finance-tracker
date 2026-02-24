@@ -43,12 +43,12 @@ func TestLoadCategoryConfig_FromFile(t *testing.T) {
 func TestLoadCategoryConfig_FileNotFound(t *testing.T) {
 	cfg := LoadCategoryConfig("/nonexistent/path/categories.json")
 
-	// Should return default config
-	if cfg.DefaultCategory != "Housing" {
-		t.Errorf("DefaultCategory = %q, want %q (built-in default)", cfg.DefaultCategory, "Housing")
+	// Should fall back to embedded categories.json
+	if cfg.DefaultCategory != "Shopping" {
+		t.Errorf("DefaultCategory = %q, want %q (embedded config)", cfg.DefaultCategory, "Shopping")
 	}
-	if len(cfg.Categories) != 4 {
-		t.Errorf("len(Categories) = %d, want 4 (built-in defaults)", len(cfg.Categories))
+	if len(cfg.Categories) < 4 {
+		t.Errorf("len(Categories) = %d, want at least 4 (embedded config)", len(cfg.Categories))
 	}
 }
 
