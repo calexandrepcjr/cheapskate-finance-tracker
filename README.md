@@ -129,6 +129,9 @@ make --version    # GNU Make
 
 You do **not** need Android Studio. The command-line tools are enough (~1 GB).
 
+> **Quick setup:** Run `make setup-android` to automate all the steps below.
+> Use `go run ./scripts/android-setup check` to see what's already installed.
+
 #### 1. Download Command-Line Tools
 
 Go to [developer.android.com/studio#command-line-tools-only](https://developer.android.com/studio#command-line-tools-only) and download the **"Command line tools only"** package for your OS.

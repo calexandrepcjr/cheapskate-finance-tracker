@@ -1,7 +1,7 @@
 # Makefile - Unified build system for Cheapskate Finance Tracker
 # Supports: Linux, Docker, Android (ARM64)
 .PHONY: all build run generate tools clean hooks-cli setup-hooks test vendor \
-        build-android build-android-apk docker dev
+        android-setup setup-android build-android build-android-apk docker dev
 
 all: build
 
@@ -20,6 +20,13 @@ generate:
 build: generate
 	CGO_ENABLED=0 go build -o bin/server ./server
 	@echo "Built: bin/server (linux/$(shell go env GOARCH))"
+
+# ─── Android Setup ─────────────────────────────────────────────────────
+android-setup:
+	go build -o bin/android-setup ./scripts/android-setup
+
+setup-android: android-setup
+	./bin/android-setup setup
 
 # ─── Build: Android ARM64 ───────────────────────────────────────────────
 # Produces a static Linux ARM64 binary that runs on Android.
