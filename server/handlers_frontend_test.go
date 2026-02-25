@@ -14,7 +14,7 @@ import (
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
 	"github.com/go-chi/chi/v5"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // setupTestApp creates a test Application with an in-memory SQLite database
@@ -22,7 +22,7 @@ func setupTestApp(t *testing.T) *Application {
 	t.Helper()
 
 	// Create in-memory SQLite database
-	dbConn, err := sql.Open("sqlite3", ":memory:")
+	dbConn, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}

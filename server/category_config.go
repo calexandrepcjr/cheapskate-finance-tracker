@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	cheapskate "github.com/calexandrepcjr/cheapskate-finance-tracker"
 )
 
 type CategoryEntry struct {
@@ -18,21 +20,28 @@ type CategoryConfig struct {
 }
 
 // LoadCategoryConfig loads category mappings from a JSON file.
-// If the file doesn't exist, returns the built-in default config.
+// It first tries the filesystem path, then falls back to the embedded config,
+// and finally to built-in defaults.
 func LoadCategoryConfig(path string) *CategoryConfig {
+	// Try filesystem first (allows runtime override)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("Category config file not found at %q, using built-in defaults", path)
-		return defaultCategoryConfig()
+		// Fall back to embedded categories.json
+		data = cheapskate.CategoriesJSON
+		if len(data) == 0 {
+			log.Printf("Category config not found at %q and no embedded config, using built-in defaults", path)
+			return defaultCategoryConfig()
+		}
+		log.Printf("Using embedded category config")
 	}
 
 	var cfg CategoryConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		log.Printf("Failed to parse category config %q: %v, using built-in defaults", path, err)
+		log.Printf("Failed to parse category config: %v, using built-in defaults", err)
 		return defaultCategoryConfig()
 	}
 
-	log.Printf("Loaded %d category mappings from %s", len(cfg.Categories), path)
+	log.Printf("Loaded %d category mappings", len(cfg.Categories))
 	return &cfg
 }
 

@@ -1,43 +1,78 @@
-# Makefile
-.PHONY: all build run generate tools clean hooks-cli setup-hooks test
+# Makefile - Unified build system for Cheapskate Finance Tracker
+# Supports: Linux, Docker, Android (ARM64)
+.PHONY: all build run generate tools clean hooks-cli setup-hooks test vendor \
+        android-setup setup-android build-android build-android-apk docker dev
 
 all: build
 
-# Install necessary tools
+# ─── Tools ──────────────────────────────────────────────────────────────
 tools:
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install github.com/a-h/templ/cmd/templ@latest
 	go install github.com/air-verse/air@latest
 
-# Generate code (SQLC + Templ)
+# ─── Code Generation ────────────────────────────────────────────────────
 generate:
 	sqlc generate
 	templ generate
 
-# Build the application
+# ─── Build: Linux (default) ─────────────────────────────────────────────
 build: generate
-	go build -o bin/server ./server
+	CGO_ENABLED=0 go build -o bin/server ./server
+	@echo "Built: bin/server (linux/$(shell go env GOARCH))"
 
-# Build the hooks CLI tool
-hooks-cli:
-	go build -o bin/hooks-cli ./scripts/hooks-cli
+# ─── Android Setup ─────────────────────────────────────────────────────
+android-setup:
+	go build -o bin/android-setup ./scripts/android-setup
 
-# Setup git hooks (builds hooks-cli first)
-setup-hooks: hooks-cli
-	./bin/hooks-cli setup-hooks
+setup-android: android-setup
+	./bin/android-setup setup
 
-# Run tests
+# ─── Build: Android ARM64 ───────────────────────────────────────────────
+# Produces a static Linux ARM64 binary that runs on Android.
+# Android is Linux-based, so GOOS=linux works for Android ARM64 devices.
+build-android: generate
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/server-android-arm64 ./server
+	@echo "Built: bin/server-android-arm64 (android/arm64)"
+
+# Build Android APK (requires Android SDK + Gradle in android/)
+# First builds the server binary, copies it to Android assets, then builds the APK.
+build-android-apk: build-android
+	mkdir -p android/app/src/main/assets
+	cp bin/server-android-arm64 android/app/src/main/assets/server-arm64
+	cd android && ./gradlew assembleDebug
+	@echo "APK built: android/app/build/outputs/apk/debug/app-debug.apk"
+
+# ─── Build: Docker ──────────────────────────────────────────────────────
+docker:
+	docker build -t cheapskate .
+
+# ─── Vendor: Download frontend dependencies ─────────────────────────────
+vendor:
+	mkdir -p client/assets/vendor
+	curl -sL "https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" \
+		-o client/assets/vendor/htmx.min.js
+	@echo "Vendor assets downloaded to client/assets/vendor/"
+
+# ─── Testing ────────────────────────────────────────────────────────────
 test:
-	go test ./... -v
+	CGO_ENABLED=0 go test ./... -v
 
-# Run the application
+# ─── Run ────────────────────────────────────────────────────────────────
 run: generate
-	go run server/main.go
+	go run ./server
 
-# Run with hot reload (requires air, optional)
 dev:
 	export PATH=$(PATH):$(HOME)/go/bin && air
 
+# ─── Git Hooks ──────────────────────────────────────────────────────────
+hooks-cli:
+	go build -o bin/hooks-cli ./scripts/hooks-cli
+
+setup-hooks: hooks-cli
+	./bin/hooks-cli setup-hooks
+
+# ─── Clean ──────────────────────────────────────────────────────────────
 clean:
 	rm -rf bin
-	rm -rf server/db/*.go
+	rm -rf android/app/build

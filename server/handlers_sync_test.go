@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func TestHandleStorageStatus(t *testing.T) {

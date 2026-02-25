@@ -16,6 +16,10 @@ templ Layout(title string, content templ.Component) {
 		
 		<!-- Google Fonts: Inter/Outfit -->
 		<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+
+		<!-- PWA manifest -->
+		<link rel="manifest" href="/assets/manifest.json"/>
+		<meta name="theme-color" content="#16213e"/>
 		
 		<style>
 			body { font-family: 'Outfit', sans-serif; }
@@ -28,6 +32,13 @@ templ Layout(title string, content templ.Component) {
 
 		<!-- IndexedDB sync module -->
 		<script src="/assets/js/sync.js" defer></script>
+
+		<!-- PWA service worker registration -->
+		<script>
+			if ('serviceWorker' in navigator) {
+				navigator.serviceWorker.register('/assets/sw.js').catch(function() {});
+			}
+		</script>
 	</head>
 	<body class="h-full flex flex-col">
 		<header class="w-full p-4 flex justify-between items-center glass sticky top-0 z-50 border-b border-gray-200/50">

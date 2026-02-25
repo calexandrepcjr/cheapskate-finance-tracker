@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // setupTestDB creates a test database with schema and returns cleanup function
 func setupTestDB(t *testing.T) (*db.Queries, func()) {
 	t.Helper()
 
-	dbConn, err := sql.Open("sqlite3", ":memory:")
+	dbConn, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

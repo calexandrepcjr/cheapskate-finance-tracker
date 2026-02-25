@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -67,7 +67,7 @@ func (app *Application) runBackup() {
 	}
 }
 
-// performBackup creates a consistent SQLite backup using the backup API.
+// performBackup creates a consistent SQLite backup using VACUUM INTO.
 func (app *Application) performBackup() error {
 	destPath := filepath.Join(app.Config.BackupPath, "cheapskate.db")
 
@@ -79,82 +79,63 @@ func (app *Application) performBackup() error {
 	return sqliteBackup(app.DB, destPath)
 }
 
-// sqliteBackup copies a live SQLite database to destPath using the backup API.
+// sqliteBackup copies a live SQLite database to destPath using VACUUM INTO.
+// This is a portable approach that works with any SQLite driver (no CGO required).
 func sqliteBackup(srcDB *sql.DB, destPath string) error {
-	srcConn, err := srcDB.Conn(context.Background())
-	if err != nil {
-		return err
-	}
-	defer srcConn.Close()
+	// VACUUM INTO fails if the destination file already exists, so remove it first.
+	os.Remove(destPath)
 
-	return srcConn.Raw(func(driverConn interface{}) error {
-		src := driverConn.(*sqlite3.SQLiteConn)
-
-		destDB, err := sql.Open("sqlite3", destPath)
-		if err != nil {
-			return err
-		}
-		defer destDB.Close()
-
-		destConn, err := destDB.Conn(context.Background())
-		if err != nil {
-			return err
-		}
-		defer destConn.Close()
-
-		return destConn.Raw(func(dc interface{}) error {
-			dest := dc.(*sqlite3.SQLiteConn)
-			backup, err := dest.Backup("main", src, "main")
-			if err != nil {
-				return err
-			}
-			_, err = backup.Step(-1)
-			if err != nil {
-				backup.Finish()
-				return err
-			}
-			return backup.Finish()
-		})
-	})
+	// Escape single quotes in the path for the SQL literal.
+	escaped := strings.ReplaceAll(destPath, "'", "''")
+	_, err := srcDB.Exec("VACUUM INTO '" + escaped + "'")
+	return err
 }
 
-// sqliteRestore copies a SQLite file into the live database using the backup API.
+// sqliteRestore copies a SQLite file into the live database using ATTACH + table copy.
+// This is a portable approach that works with any SQLite driver (no CGO required).
 func sqliteRestore(destDB *sql.DB, srcPath string) error {
-	destConn, err := destDB.Conn(context.Background())
+	escaped := strings.ReplaceAll(srcPath, "'", "''")
+
+	// Attach the source backup database
+	_, err := destDB.Exec("ATTACH DATABASE '" + escaped + "' AS restore_src")
 	if err != nil {
-		return err
+		return fmt.Errorf("attach source: %w", err)
 	}
-	defer destConn.Close()
+	defer destDB.Exec("DETACH restore_src")
 
-	return destConn.Raw(func(driverConn interface{}) error {
-		dest := driverConn.(*sqlite3.SQLiteConn)
-
-		srcDB, err := sql.Open("sqlite3", srcPath+"?mode=ro")
-		if err != nil {
-			return err
+	// Get list of tables from the backup
+	rows, err := destDB.Query("SELECT name FROM restore_src.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+	if err != nil {
+		return fmt.Errorf("list tables: %w", err)
+	}
+	var tables []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan table name: %w", err)
 		}
-		defer srcDB.Close()
+		tables = append(tables, name)
+	}
+	rows.Close()
 
-		srcConn, err := srcDB.Conn(context.Background())
+	// Disable foreign keys during restore to avoid constraint violations during copy
+	destDB.Exec("PRAGMA foreign_keys = OFF")
+	defer destDB.Exec("PRAGMA foreign_keys = ON")
+
+	// For each table: clear existing data, then copy from backup
+	for _, table := range tables {
+		_, err := destDB.Exec("DELETE FROM main." + table)
 		if err != nil {
-			return err
+			return fmt.Errorf("delete from %s: %w", table, err)
 		}
-		defer srcConn.Close()
+		_, err = destDB.Exec("INSERT INTO main." + table + " SELECT * FROM restore_src." + table)
+		if err != nil {
+			return fmt.Errorf("copy %s: %w", table, err)
+		}
+	}
 
-		return srcConn.Raw(func(sc interface{}) error {
-			src := sc.(*sqlite3.SQLiteConn)
-			backup, err := dest.Backup("main", src, "main")
-			if err != nil {
-				return err
-			}
-			_, err = backup.Step(-1)
-			if err != nil {
-				backup.Finish()
-				return err
-			}
-			return backup.Finish()
-		})
-	})
+	return nil
 }
 
 // performJSONExport writes a human-readable JSON export alongside the DB backup.

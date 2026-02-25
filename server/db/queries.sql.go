@@ -25,7 +25,7 @@ func (q *Queries) CountAllTransactions(ctx context.Context) (int64, error) {
 const countTransactionsByYear = `-- name: CountTransactionsByYear :one
 SELECT COUNT(*) as count
 FROM transactions t
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+WHERE substr(t.date, 1, 4) = CAST(? AS TEXT)
 AND t.deleted_at IS NULL
 `
 
@@ -39,7 +39,7 @@ func (q *Queries) CountTransactionsByYear(ctx context.Context, dollar_1 string) 
 const countTransactionsByYearWithDeleted = `-- name: CountTransactionsByYearWithDeleted :one
 SELECT COUNT(*) as count
 FROM transactions t
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+WHERE substr(t.date, 1, 4) = CAST(? AS TEXT)
 `
 
 func (q *Queries) CountTransactionsByYearWithDeleted(ctx context.Context, dollar_1 string) (int64, error) {
@@ -143,7 +143,7 @@ SELECT
     CAST(COALESCE(SUM(ABS(t.amount)), 0) AS INTEGER) as total_amount,
     COUNT(t.id) as transaction_count
 FROM categories c
-LEFT JOIN transactions t ON t.category_id = c.id AND strftime('%Y', t.date) = CAST(? AS TEXT) AND t.deleted_at IS NULL
+LEFT JOIN transactions t ON t.category_id = c.id AND substr(t.date, 1, 4) = CAST(? AS TEXT) AND t.deleted_at IS NULL
 GROUP BY c.id, c.name, c.icon, c.type, c.color
 ORDER BY c.type, total_amount DESC
 `
@@ -190,7 +190,7 @@ func (q *Queries) GetCategoryTotalsByYear(ctx context.Context, dollar_1 string) 
 }
 
 const getDistinctTransactionYears = `-- name: GetDistinctTransactionYears :many
-SELECT DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year
+SELECT DISTINCT CAST(substr(date, 1, 4) AS INTEGER) as year
 FROM transactions
 WHERE deleted_at IS NULL
 ORDER BY year DESC
@@ -221,12 +221,12 @@ func (q *Queries) GetDistinctTransactionYears(ctx context.Context) ([]int64, err
 
 const getMonthlyTotalsByYear = `-- name: GetMonthlyTotalsByYear :many
 SELECT
-    CAST(strftime('%m', date) AS INTEGER) as month,
+    CAST(substr(date, 6, 2) AS INTEGER) as month,
     c.type as category_type,
     CAST(COALESCE(SUM(ABS(amount)), 0) AS INTEGER) as total_amount
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+WHERE substr(t.date, 1, 4) = CAST(? AS TEXT)
 AND t.deleted_at IS NULL
 GROUP BY month, c.type
 ORDER BY month
@@ -427,7 +427,7 @@ SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.da
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+WHERE substr(t.date, 1, 4) = CAST(? AS TEXT)
 AND t.deleted_at IS NULL
 ORDER BY t.date DESC
 `
@@ -490,7 +490,7 @@ SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.da
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+WHERE substr(t.date, 1, 4) = CAST(? AS TEXT)
 AND t.deleted_at IS NULL
 ORDER BY t.date DESC
 LIMIT ? OFFSET ?
@@ -560,7 +560,7 @@ SELECT t.id, t.user_id, t.category_id, t.amount, t.currency, t.description, t.da
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 JOIN users u ON t.user_id = u.id
-WHERE strftime('%Y', t.date) = CAST(? AS TEXT)
+WHERE substr(t.date, 1, 4) = CAST(? AS TEXT)
 ORDER BY t.date DESC
 LIMIT ? OFFSET ?
 `

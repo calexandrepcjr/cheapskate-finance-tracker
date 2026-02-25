@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/calexandrepcjr/cheapskate-finance-tracker/server/db"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func TestEnsureSchema(t *testing.T) {
@@ -28,7 +28,7 @@ func TestEnsureSchema(t *testing.T) {
 	defer os.Chdir(originalWd)
 
 	t.Run("creates tables on fresh database", func(t *testing.T) {
-		dbConn, err := sql.Open("sqlite3", ":memory:")
+		dbConn, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
 			t.Fatalf("Failed to open database: %v", err)
 		}
@@ -59,7 +59,7 @@ func TestEnsureSchema(t *testing.T) {
 	})
 
 	t.Run("seeds default categories", func(t *testing.T) {
-		dbConn, err := sql.Open("sqlite3", ":memory:")
+		dbConn, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
 			t.Fatalf("Failed to open database: %v", err)
 		}
@@ -97,7 +97,7 @@ func TestEnsureSchema(t *testing.T) {
 	})
 
 	t.Run("idempotent - can run multiple times", func(t *testing.T) {
-		dbConn, err := sql.Open("sqlite3", ":memory:")
+		dbConn, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
 			t.Fatalf("Failed to open database: %v", err)
 		}
@@ -132,7 +132,7 @@ func TestEnsureSeed(t *testing.T) {
 	defer os.Chdir(originalWd)
 
 	t.Run("creates default user when table is empty", func(t *testing.T) {
-		dbConn, err := sql.Open("sqlite3", ":memory:")
+		dbConn, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
 			t.Fatalf("Failed to open database: %v", err)
 		}
@@ -180,7 +180,7 @@ func TestEnsureSeed(t *testing.T) {
 	})
 
 	t.Run("does not create duplicate users", func(t *testing.T) {
-		dbConn, err := sql.Open("sqlite3", ":memory:")
+		dbConn, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
 			t.Fatalf("Failed to open database: %v", err)
 		}
@@ -219,7 +219,7 @@ func TestEnsureSeed(t *testing.T) {
 	})
 
 	t.Run("does not seed if users already exist", func(t *testing.T) {
-		dbConn, err := sql.Open("sqlite3", ":memory:")
+		dbConn, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
 			t.Fatalf("Failed to open database: %v", err)
 		}
@@ -280,7 +280,7 @@ func TestEnsureSeed_NoDuplicateSalaryCategories(t *testing.T) {
 	}
 	defer os.Chdir(originalWd)
 
-	dbConn, err := sql.Open("sqlite3", ":memory:")
+	dbConn, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestEnsureSeed_FixesIncomeCategoryTypes(t *testing.T) {
 	}
 	defer os.Chdir(originalWd)
 
-	dbConn, err := sql.Open("sqlite3", ":memory:")
+	dbConn, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestEnsureSeed_CleansDuplicateSalaryCategories(t *testing.T) {
 	}
 	defer os.Chdir(originalWd)
 
-	dbConn, err := sql.Open("sqlite3", ":memory:")
+	dbConn, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestEnsureSeed_IdempotentOverall(t *testing.T) {
 	}
 	defer os.Chdir(originalWd)
 
-	dbConn, err := sql.Open("sqlite3", ":memory:")
+	dbConn, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
