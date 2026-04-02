@@ -33,3 +33,24 @@ INSERT INTO categories (name, type, icon, color) VALUES
 ('Transport', 'expense', '🚕', '#33C1FF'),
 ('Housing', 'expense', '🏠', '#8D33FF'),
 ('Earned Income', 'income', '💰', '#2ECC71');
+
+-- Google Drive sync configuration (user-owned backup)
+CREATE TABLE IF NOT EXISTS gdrive_config (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  folder_id TEXT,
+  folder_name TEXT,
+  last_sync_at DATETIME,
+  auto_backup INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Store only the latest backup version info (actual data stays in Drive)
+CREATE TABLE IF NOT EXISTS backup_metadata (
+  id INTEGER PRIMARY KEY,
+  version TEXT NOT NULL DEFAULT '1.0',
+  schema_version INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  checksum TEXT
+);

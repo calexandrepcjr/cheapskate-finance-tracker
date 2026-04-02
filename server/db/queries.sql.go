@@ -811,3 +811,129 @@ func (q *Queries) GetTopUsedCategories(ctx context.Context, arg GetTopUsedCatego
 	}
 	return items, nil
 }
+
+const getGdriveConfig = `-- name: GetGdriveConfig :one
+SELECT * FROM gdrive_config LIMIT 1
+`
+
+func (q *Queries) GetGdriveConfig(ctx context.Context) (GdriveConfig, error) {
+	row := q.queryRow(ctx, nil, getGdriveConfig)
+	var i GdriveConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Enabled,
+		&i.FolderID,
+		&i.FolderName,
+		&i.LastSyncAt,
+		&i.AutoBackup,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertGdriveConfig = `-- name: UpsertGdriveConfig :exec
+INSERT INTO gdrive_config (id, enabled, folder_id, folder_name, auto_backup, updated_at)
+VALUES (1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(id) DO UPDATE SET
+  enabled = excluded.enabled,
+  folder_id = excluded.folder_id,
+  folder_name = excluded.folder_name,
+  auto_backup = excluded.auto_backup,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertGdriveConfigParams struct {
+	Enabled    bool   `json:"enabled"`
+	FolderID   string `json:"folder_id"`
+	FolderName string `json:"folder_name"`
+	AutoBackup bool   `json:"auto_backup"`
+}
+
+func (q *Queries) UpsertGdriveConfig(ctx context.Context, arg UpsertGdriveConfigParams) error {
+	var enabled int64
+	if arg.Enabled {
+		enabled = 1
+	}
+	var autoBackup int64
+	if arg.AutoBackup {
+		autoBackup = 1
+	}
+	_, err := q.exec(ctx, nil, upsertGdriveConfig, enabled, arg.FolderID, arg.FolderName, autoBackup)
+	return err
+}
+
+const updateGdriveLastSync = `-- name: UpdateGdriveLastSync :exec
+UPDATE gdrive_config
+SET last_sync_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1
+`
+
+func (q *Queries) UpdateGdriveLastSync(ctx context.Context) error {
+	_, err := q.exec(ctx, nil, updateGdriveLastSync)
+	return err
+}
+
+const deleteGdriveConfig = `-- name: DeleteGdriveConfig :exec
+UPDATE gdrive_config
+SET enabled = 0,
+    folder_id = NULL,
+    folder_name = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1
+`
+
+func (q *Queries) DeleteGdriveConfig(ctx context.Context) error {
+	_, err := q.exec(ctx, nil, deleteGdriveConfig)
+	return err
+}
+
+const getBackupMetadata = `-- name: GetBackupMetadata :one
+SELECT * FROM backup_metadata ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) GetBackupMetadata(ctx context.Context) ([]BackupMetadata, error) {
+	rows, err := q.query(ctx, nil, getBackupMetadata)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BackupMetadata
+	for rows.Next() {
+		var i BackupMetadata
+		if err := rows.Scan(
+			&i.ID,
+			&i.Version,
+			&i.SchemaVersion,
+			&i.CreatedAt,
+			&i.Checksum,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertBackupMetadata = `-- name: InsertBackupMetadata :exec
+INSERT INTO backup_metadata (version, schema_version, checksum)
+VALUES (?, ?, ?)
+`
+
+type InsertBackupMetadataParams struct {
+	Version       string `json:"version"`
+	SchemaVersion int64  `json:"schema_version"`
+	Checksum      string `json:"checksum"`
+}
+
+func (q *Queries) InsertBackupMetadata(ctx context.Context, arg InsertBackupMetadataParams) error {
+	_, err := q.exec(ctx, nil, insertBackupMetadata, arg.Version, arg.SchemaVersion, arg.Checksum)
+	return err
+}

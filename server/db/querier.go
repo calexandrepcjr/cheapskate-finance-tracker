@@ -31,6 +31,12 @@ type Querier interface {
 	RestoreTransaction(ctx context.Context, arg RestoreTransactionParams) error
 	SearchTransactionsForRemoval(ctx context.Context, arg SearchTransactionsForRemovalParams) ([]SearchTransactionsForRemovalRow, error)
 	SoftDeleteTransaction(ctx context.Context, arg SoftDeleteTransactionParams) error
+	GetGdriveConfig(ctx context.Context) (GdriveConfig, error)
+	UpsertGdriveConfig(ctx context.Context, arg UpsertGdriveConfigParams) error
+	UpdateGdriveLastSync(ctx context.Context) error
+	DeleteGdriveConfig(ctx context.Context) error
+	GetBackupMetadata(ctx context.Context) ([]BackupMetadata, error)
+	InsertBackupMetadata(ctx context.Context, arg InsertBackupMetadataParams) error
 }
 
 var _ Querier = (*Queries)(nil)

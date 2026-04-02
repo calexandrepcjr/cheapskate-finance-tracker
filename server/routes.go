@@ -25,4 +25,13 @@ func (app *Application) setupRoutes(r chi.Router) {
 	r.Get("/api/backup/download", app.HandleBackupDownload)
 	r.Post("/api/backup/restore", app.HandleBackupRestore)
 	r.Get("/api/backup/status", app.HandleBackupStatus)
+
+	// Google Drive endpoints
+	r.Get("/api/gdrive/status", app.HandleGDriveStatus)
+	r.Post("/api/gdrive/connect", app.HandleGDriveConnect)
+	r.Post("/api/gdrive/disconnect", app.HandleGDriveDisconnect)
+	r.Post("/api/gdrive/backup", app.HandleGDriveBackup)
+	r.Post("/api/gdrive/restore", app.HandleGDriveRestore)
+	r.Post("/api/gdrive/auto-backup", app.HandleGDriveAutoBackup)
+	r.Get("/api/gdrive/callback", app.HandleGDriveOAuthCallback)
 }

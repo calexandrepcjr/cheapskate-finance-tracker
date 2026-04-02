@@ -35,3 +35,22 @@ type User struct {
 	Email     string       `json:"email"`
 	CreatedAt sql.NullTime `json:"created_at"`
 }
+
+type GdriveConfig struct {
+	ID          int64          `json:"id"`
+	Enabled     int64         `json:"enabled"`
+	FolderID    sql.NullString `json:"folder_id"`
+	FolderName  sql.NullString `json:"folder_name"`
+	LastSyncAt  sql.NullTime   `json:"last_sync_at"`
+	AutoBackup  int64         `json:"auto_backup"`
+	CreatedAt   sql.NullTime  `json:"created_at"`
+	UpdatedAt   sql.NullTime  `json:"updated_at"`
+}
+
+type BackupMetadata struct {
+	ID            int64         `json:"id"`
+	Version       string        `json:"version"`
+	SchemaVersion int64         `json:"schema_version"`
+	CreatedAt     sql.NullTime  `json:"created_at"`
+	Checksum      sql.NullString `json:"checksum"`
+}

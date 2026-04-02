@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -423,7 +424,23 @@ func (app *Application) HandleSettings(w http.ResponseWriter, r *http.Request) {
 		LastBackupAt: lastBackupStr,
 	}
 
-	templates.Settings(mappings, backup).Render(r.Context(), w)
+	ctx := r.Context()
+	gdrive := templates.GDriveStatus{
+		ClientIDSet: os.Getenv("GOOGLE_CLIENT_ID") != "",
+	}
+
+	cfg, err := app.Q.GetGdriveConfig(ctx)
+	if err == nil && cfg.Enabled.Bool {
+		gdrive.Enabled = true
+		gdrive.Connected = cfg.FolderID.String != ""
+		gdrive.FolderName = cfg.FolderName.String
+		gdrive.AutoBackup = cfg.AutoBackup.Bool
+		if cfg.LastSyncAt.Valid {
+			gdrive.LastSyncAt = cfg.LastSyncAt.Time.UTC().Format(time.RFC3339)
+		}
+	}
+
+	templates.Settings(mappings, backup, gdrive).Render(r.Context(), w)
 }
 
 func (app *Application) HandleExportCSV(w http.ResponseWriter, r *http.Request) {

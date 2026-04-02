@@ -147,3 +147,37 @@ LEFT JOIN transactions t ON t.category_id = c.id AND t.deleted_at IS NULL AND t.
 GROUP BY c.id, c.name, c.type, c.icon, c.color
 ORDER BY usage_count DESC, c.name ASC
 LIMIT ?;
+
+-- name: GetGdriveConfig :one
+SELECT * FROM gdrive_config LIMIT 1;
+
+-- name: UpsertGdriveConfig :exec
+INSERT INTO gdrive_config (id, enabled, folder_id, folder_name, auto_backup, updated_at)
+VALUES (1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(id) DO UPDATE SET
+  enabled = excluded.enabled,
+  folder_id = excluded.folder_id,
+  folder_name = excluded.folder_name,
+  auto_backup = excluded.auto_backup,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpdateGdriveLastSync :exec
+UPDATE gdrive_config
+SET last_sync_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1;
+
+-- name: DeleteGdriveConfig :exec
+UPDATE gdrive_config
+SET enabled = 0,
+    folder_id = NULL,
+    folder_name = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1;
+
+-- name: GetBackupMetadata :one
+SELECT * FROM backup_metadata ORDER BY created_at DESC LIMIT 1;
+
+-- name: InsertBackupMetadata :exec
+INSERT INTO backup_metadata (version, schema_version, checksum)
+VALUES (?, ?, ?);
