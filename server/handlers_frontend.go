@@ -423,7 +423,19 @@ func (app *Application) HandleSettings(w http.ResponseWriter, r *http.Request) {
 		LastBackupAt: lastBackupStr,
 	}
 
-	templates.Settings(mappings, backup).Render(r.Context(), w)
+	var gdrive templates.GDriveStatus
+	if app.GDrive != nil {
+		cfg := app.GDrive.GetConfig()
+		if cfg != nil {
+			gdrive.Enabled = cfg.Enabled
+			gdrive.Connected = app.GDrive.IsConnected()
+			gdrive.FolderName = cfg.FolderName
+			gdrive.Email = cfg.Email
+			gdrive.LastSync = cfg.LastSync
+		}
+	}
+
+	templates.Settings(mappings, backup, gdrive).Render(r.Context(), w)
 }
 
 func (app *Application) HandleExportCSV(w http.ResponseWriter, r *http.Request) {

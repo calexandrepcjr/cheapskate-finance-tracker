@@ -21,7 +21,15 @@ type BackupStatus struct {
 	LastBackupAt string
 }
 
-func Settings(mappings []CategoryMapping, backup BackupStatus) templ.Component {
+type GDriveStatus struct {
+	Enabled    bool
+	Connected  bool
+	FolderName string
+	Email      string
+	LastSync   string
+}
+
+func Settings(mappings []CategoryMapping, backup BackupStatus, gdrive GDriveStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -42,7 +50,7 @@ func Settings(mappings []CategoryMapping, backup BackupStatus) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Layout("Settings", SettingsView(mappings, backup)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout("Settings", SettingsView(mappings, backup, gdrive)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -50,7 +58,7 @@ func Settings(mappings []CategoryMapping, backup BackupStatus) templ.Component {
 	})
 }
 
-func SettingsView(mappings []CategoryMapping, backup BackupStatus) templ.Component {
+func SettingsView(mappings []CategoryMapping, backup BackupStatus, gdrive GDriveStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -71,7 +79,33 @@ func SettingsView(mappings []CategoryMapping, backup BackupStatus) templ.Compone
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><h2 class=\"text-2xl font-bold\">Settings</h2><!-- Category Mappings -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><h2 class=\"text-2xl font-bold\">Settings</h2><!-- Google Drive Integration --><div class=\"bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-4\"><div><h3 class=\"font-bold text-gray-700\">Google Drive Sync</h3><p class=\"text-sm text-gray-500 mt-1\">Connect your Google Drive to automatically backup and sync your data across devices.</p></div><!-- GDrive Status --><div class=\"text-sm space-y-2\">")
+		if gdrive.Enabled {
+			if gdrive.Connected {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex items-center gap-2\"><span class=\"w-2 h-2 rounded-full bg-green-500\"></span><span class=\"text-gray-600\">Status: <span class=\"font-medium text-green-700\">Connected</span></span></div>")
+				if gdrive.Email != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"text-gray-500 ml-4\">Account: <span class=\"font-medium\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(gdrive.Email))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</span></div>")
+				}
+				if gdrive.FolderName != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div class=\"text-gray-500 ml-4\">Backup folder: <span class=\"font-medium\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(gdrive.FolderName))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span></div>")
+				}
+				if gdrive.LastSync != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"text-gray-500 ml-4\">Last sync: <span class=\"font-medium\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(gdrive.LastSync))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span></div>")
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"flex flex-wrap gap-3 pt-2\"><button hx-get=\"/api/gdrive/sync\" hx-target=\"#gdrive-result\" hx-swap=\"innerHTML\" class=\"px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition\">Sync Now</button><button hx-get=\"/api/gdrive/disconnect\" hx-target=\"#gdrive-result\" hx-swap=\"innerHTML\" class=\"px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition\">Disconnect</button></div>")
+			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"flex items-center gap-2\"><span class=\"w-2 h-2 rounded-full bg-gray-400\"></span><span class=\"text-gray-600\">Status: <span class=\"font-medium text-gray-500\">Not Connected</span></span></div><div class=\"pt-2\"><a href=\"/api/gdrive/connect\" class=\"inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition\">Connect Google Drive</a></div>")
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"flex items-center gap-2\"><span class=\"w-2 h-2 rounded-full bg-gray-400\"></span><span class=\"text-gray-600\">Status: <span class=\"font-medium text-gray-500\">Not Configured</span></span></div><p class=\"text-xs text-gray-400\">Google Drive sync requires configuration. Contact your administrator to enable this feature.</p>")
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div><div id=\"gdrive-result\"></div></div><!-- Category Mappings -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

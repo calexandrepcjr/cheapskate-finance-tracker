@@ -19,11 +19,15 @@ import (
 )
 
 type Config struct {
-	Port           int
-	DBPath         string
-	CategoriesPath string
-	BackupPath     string
-	BackupInterval int
+	Port             int
+	DBPath           string
+	CategoriesPath   string
+	BackupPath       string
+	BackupInterval   int
+	GDriveEnabled    bool
+	GDriveClientID   string
+	GDriveClientSecret string
+	GDriveRedirectURI string
 }
 
 type Application struct {
@@ -31,6 +35,7 @@ type Application struct {
 	DB        *sql.DB
 	Q         *db.Queries
 	CatConfig *CategoryConfig
+	GDrive    *GDriveService
 }
 
 func main() {
@@ -40,6 +45,10 @@ func main() {
 	flag.StringVar(&cfg.CategoriesPath, "categories", "categories.json", "Path to category mappings config file")
 	flag.StringVar(&cfg.BackupPath, "backup-path", "", "Directory for automatic backups (disabled if empty)")
 	flag.IntVar(&cfg.BackupInterval, "backup-interval", 30, "Backup interval in minutes")
+	flag.BoolVar(&cfg.GDriveEnabled, "gdrive-enabled", false, "Enable Google Drive sync")
+	flag.StringVar(&cfg.GDriveClientID, "gdrive-client-id", "", "Google Drive OAuth2 Client ID")
+	flag.StringVar(&cfg.GDriveClientSecret, "gdrive-client-secret", "", "Google Drive OAuth2 Client Secret")
+	flag.StringVar(&cfg.GDriveRedirectURI, "gdrive-redirect-uri", "http://localhost:8080/oauth2/callback", "Google Drive OAuth2 Redirect URI")
 	flag.Parse()
 
 	// Initialize Database
@@ -64,6 +73,23 @@ func main() {
 		DB:        dbConn,
 		Q:         queries,
 		CatConfig: catConfig,
+	}
+
+	// Initialize Google Drive service if enabled
+	if cfg.GDriveEnabled {
+		gdriveCfg := &GDriveConfig{
+			Enabled:      true,
+			ClientID:     cfg.GDriveClientID,
+			ClientSecret: cfg.GDriveClientSecret,
+			RedirectURI:  cfg.GDriveRedirectURI,
+		}
+		gdriveSvc, err := NewGDriveService(gdriveCfg)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Google Drive service: %v", err)
+		} else {
+			app.GDrive = gdriveSvc
+			log.Printf("Google Drive integration enabled")
+		}
 	}
 
 	// Apply migrations
